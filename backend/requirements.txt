@@ -1,0 +1,42 @@
+# FastAPI & Server
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.18
+
+# LangChain Core
+langchain==0.3.14
+langchain-core==0.3.29
+langchain-community==0.3.14
+langchain-text-splitters==0.3.4
+
+# LLM Providers
+langchain-google-genai==2.0.8
+langchain-groq==0.2.1
+langchain-nvidia-ai-endpoints==0.3.8
+
+# Embeddings
+sentence-transformers==3.4.1
+
+# Vector Store
+chromadb==0.6.3
+
+# Document Loaders
+pypdf==5.1.0
+python-docx==1.1.2
+unstructured==0.16.12
+markdown==3.7
+
+# BM25
+rank-bm25==0.2.2
+
+# Database
+aiosqlite==0.20.0
+
+# Utilities
+pydantic==2.10.4
+pydantic-settings==2.7.1
+python-dotenv==1.0.1
+tiktoken==0.8.0
+
+# Re-rankers
+sentence-transformers==3.4.1
