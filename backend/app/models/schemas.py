@@ -8,19 +8,22 @@ class DocumentUploadResponse(BaseModel):
     message: str
 
 
-class DocumentResponse(BaseModel):
-    id: str
-    filename: str
-    file_type: str
-    file_size: int
-    total_pages: int
-    upload_date: str
-    tags: str
-    chunk_count: int
+class QueryRequest(BaseModel):
+    question: str
+    k: int = 5
+    strategy: str = "vector"
+    rerank: bool = False
+    rerank_top_k: int = 3
+    filters: dict = None
+    embedding_model: str = "huggingface"
+    compress: bool = False
 
 
-class DocumentListResponse(BaseModel):
-    documents: list[DocumentResponse]
+class QueryResponse(BaseModel):
+    query_id: str
+    answer: str
+    sources: list[str]
+    trace: dict = None
 
 
 class IngestionResult(BaseModel):
@@ -32,3 +35,19 @@ class IngestionResult(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
+
+
+class DocumentResponse(BaseModel):
+    id: str
+    filename: str
+    file_type: str
+    file_size: int
+    total_pages: int
+    upload_date: str
+    tags: str
+    chunk_count: int
+    status: str
+
+
+class DocumentListResponse(BaseModel):
+    documents: list[DocumentResponse]

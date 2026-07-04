@@ -1,8 +1,9 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
-load_dotenv()
-print("[stage00 | config | 002-A] OK: .env loaded")
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 
 class Settings(BaseSettings):
@@ -14,24 +15,11 @@ class Settings(BaseSettings):
     CHROMA_COLLECTION_NAME: str = ""
     DATABASE_URL: str = ""
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+    BM25_VECTOR_WEIGHT: float = 0.5
+    BM25_SPARSE_WEIGHT: float = 0.5
+    RRF_K: int = 60
+
+    model_config = {"env_file": str(env_path), "extra": "ignore"}
 
 
 settings = Settings()
-print("[stage00 | config | 002-B] OK: Settings loaded")
-
-keys = [
-    ("GOOGLE_API_KEY", settings.GOOGLE_API_KEY),
-    ("GROQ_API_KEY", settings.GROQ_API_KEY),
-    ("NVIDIA_API_KEY", settings.NVIDIA_API_KEY),
-    ("EMBEDDING_MODEL_NAME", settings.EMBEDDING_MODEL_NAME),
-    ("CHROMA_PERSIST_DIRECTORY", settings.CHROMA_PERSIST_DIRECTORY),
-    ("CHROMA_COLLECTION_NAME", settings.CHROMA_COLLECTION_NAME),
-    ("DATABASE_URL", settings.DATABASE_URL),
-]
-for letter, (name, val) in zip("CDEFGHI", keys):
-    status = "OK" if val else "WARN"
-    msg = "present" if val else "missing"
-    print(f"[stage00 | config | 002-{letter}] {status}: {name} {msg}")

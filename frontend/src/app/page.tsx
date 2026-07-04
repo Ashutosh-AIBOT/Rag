@@ -1,65 +1,156 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useEffect, useRef } from "react";
+import { Search, Sparkles } from "lucide-react";
+import QueryPanel from "@/components/QueryPanel";
+import AnswerDisplay from "@/components/AnswerDisplay";
+import ChunkInspector from "@/components/ChunkInspector";
+import PipelineVisualizer from "@/components/PipelineVisualizer";
+import MetadataFilters from "@/components/MetadataFilters";
+
+const API = "http://127.0.0.1:8000/api";
+
+interface Chunk { content: string; metadata: Record<string, any>; }
+interface Trace {
+  original_query: string; strategy: string;
+  transformed_queries?: string[]; retrieved_chunks?: Chunk[];
+  reranked_chunks?: Chunk[]; answer?: string; latency_ms?: number;
+}
+interface Doc { id: string; filename: string; }
+
+export default function QueryPage() {
+  const [question, setQuestion] = useState("");
+  const [strategy, setStrategy] = useState("hybrid-rerank");
+  const [isLoading, setIsLoading] = useState(false);
+  const [answer, setAnswer] = useState("");
+  const [trace, setTrace] = useState<Trace | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Metadata filters
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [filterPageStart, setFilterPageStart] = useState<number | "">("");
+  const [filterPageEnd, setFilterPageEnd] = useState<number | "">("");
+  const [filterSection, setFilterSection] = useState("");
+  const [filterTags, setFilterTags] = useState("");
+  const [filterStrategy, setFilterStrategy] = useState("");
+  const [k, setK] = useState(5);
+  const [rerank, setRerank] = useState(false);
+
+  const [documents, setDocuments] = useState<Doc[]>([]);
+  
+  // Abort controller reference for task cancellation
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    fetch(`${API}/documents`).then(r => r.json()).then(d => setDocuments(d.documents || [])).catch(() => {});
+    
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  const buildFilters = () => {
+    const f: Record<string, any> = {};
+    if (selectedSources.length > 0) f.source = selectedSources;
+    if (filterPageStart !== "") f.page_start = filterPageStart;
+    if (filterPageEnd !== "") f.page_end = filterPageEnd;
+    if (filterSection) f.section = filterSection;
+    if (filterTags) f.tags = filterTags;
+    if (filterStrategy) f.strategy = filterStrategy;
+    return Object.keys(f).length > 0 ? f : undefined;
+  };
+
+  const handleAsk = async () => {
+    if (!question.trim()) return;
+
+    // Abort any ongoing query
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setIsLoading(true);
+    setAnswer("");
+    setTrace(null);
+    try {
+      const res = await fetch(`${API}/query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, strategy, k, rerank, filters: buildFilters() }),
+        signal: controller.signal,
+      });
+      const data = await res.json();
+      setAnswer(data.answer || "");
+      setTrace(data.trace || null);
+    } catch (e: any) {
+      if (e.name === "AbortError") {
+        console.log("Ask request aborted.");
+      } else {
+        setAnswer("Error: Failed to query backend.");
+      }
+    } finally {
+      if (abortControllerRef.current === controller) {
+        setIsLoading(false);
+        abortControllerRef.current = null;
+      }
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 flex-1 flex flex-col gap-6">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-600/20">
+          <Search className="h-5 w-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-slate-100">Advanced Query Interface</h1>
+          <p className="text-xs text-slate-500">Hybrid search · Cross-encoder re-ranking · LCEL pipeline</p>
+        </div>
+      </div>
+
+      {/* Query Panel */}
+      <QueryPanel
+        question={question} setQuestion={setQuestion}
+        strategy={strategy} setStrategy={setStrategy}
+        isLoading={isLoading} onAsk={handleAsk}
+        showFilters={showFilters} setShowFilters={setShowFilters}
+      />
+
+      {/* Metadata Filters (collapsible) */}
+      {showFilters && (
+        <MetadataFilters
+          documents={documents}
+          selectedSources={selectedSources} setSelectedSources={setSelectedSources}
+          filterPageStart={filterPageStart} setFilterPageStart={setFilterPageStart}
+          filterPageEnd={filterPageEnd} setFilterPageEnd={setFilterPageEnd}
+          filterSection={filterSection} setFilterSection={setFilterSection}
+          filterTags={filterTags} setFilterTags={setFilterTags}
+          filterStrategy={filterStrategy} setFilterStrategy={setFilterStrategy}
+          k={k} setK={setK}
+          rerank={rerank} setRerank={setRerank}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+      )}
+
+      {/* Answer + Chunks side-by-side */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-7">
+          <AnswerDisplay answer={answer} isLoading={isLoading} chunks={trace?.retrieved_chunks} />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="lg:col-span-5">
+          <ChunkInspector
+            retrievedChunks={trace?.retrieved_chunks || []}
+            rerankedChunks={trace?.reranked_chunks || []}
+          />
         </div>
-      </main>
+      </div>
+
+      {/* Pipeline Visualizer */}
+      <PipelineVisualizer trace={trace} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import shutil
 import uuid
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks, Request
 from app.config import settings
 from app.services.validators import validate_all
 from app.services.ingestion import get_ingestion_chain
@@ -12,6 +12,7 @@ from app.database.database import (
     update_document_status, get_document_by_filename
 )
 from app.models.schemas import DocumentUploadResponse, DocumentListResponse, DocumentResponse
+from app.services.bm25_retriever import get_bm25_retriever
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -35,6 +36,7 @@ def process_document(file_path: str, doc_id: str, chroma_store):
 @router.post("/upload", response_model=DocumentUploadResponse, status_code=202)
 async def upload_document(
     file: UploadFile = File(...),
+    tags: str = Form(""),
     background_tasks: BackgroundTasks = None,
     request: Request = None,
 ):
@@ -49,28 +51,26 @@ async def upload_document(
 
         existing = get_document_by_filename(file.filename)
         if existing:
-            file_path.unlink()
             if existing["status"] == "completed":
+                file_path.unlink()
                 return DocumentUploadResponse(
                     doc_id=existing["id"], filename=file.filename, message="Document already processed"
                 )
             elif existing["status"] == "processing":
+                file_path.unlink()
                 return DocumentUploadResponse(
                     doc_id=existing["id"], filename=file.filename, message="Document is being processed"
                 )
             else:
-                update_document_status(existing["id"], "processing")
-                chroma_store = request.app.state.vectorstore
-                background_tasks.add_task(process_document, str(file_path), existing["id"], chroma_store)
-                return DocumentUploadResponse(
-                    doc_id=existing["id"], filename=file.filename, message="Processing document"
-                )
+                # Failed: remove database entry so it can be re-inserted and processed fresh
+                delete_document(existing["id"])
 
         insert_document(
             doc_id=doc_id,
             filename=file.filename,
             file_type=file.content_type,
             file_size=file.size,
+            tags=tags,
         )
 
         chroma_store = request.app.state.vectorstore
@@ -169,6 +169,7 @@ async def remove_document(doc_id: str):
             raise HTTPException(status_code=404, detail="Document not found")
 
         delete_document(doc_id)
+        get_bm25_retriever().delete_document(doc_id)
 
         file_path = UPLOAD_DIR / f"{doc_id}_{document['filename']}"
         if file_path.exists():
@@ -192,6 +193,7 @@ async def remove_all_documents():
             file_path = UPLOAD_DIR / f"{doc['id']}_{doc['filename']}"
             if file_path.exists():
                 file_path.unlink()
+        get_bm25_retriever().clear()
         logger.info(f"Deleted {len(documents)} documents")
         return {"message": f"Deleted {len(documents)} documents"}
     except Exception as e:

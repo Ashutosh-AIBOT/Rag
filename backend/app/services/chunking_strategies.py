@@ -1,5 +1,5 @@
 from langchain_core.documents import Document
-from langchain_core.runnables import RunnableLambda
+from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from app.core.logging import get_logger
 from app.services.semantic_chunker import semantic_chunking_chain
@@ -26,20 +26,10 @@ def _recursive_split(documents: list[Document]) -> list[Document]:
     return chunks
 
 
-def _all_strategies(documents: list[Document]) -> dict:
-    recursive_chunks = _recursive_split(documents)
-    semantic_chunks = semantic_chunking_chain.invoke(documents)
-    parent_child_result = parent_child_chain.invoke(documents)
-    section_chunks = section_chunking_chain.invoke(documents)
+all_strategies_chain = RunnableParallel(
+    recursive=RunnableLambda(_recursive_split),
+    semantic=semantic_chunking_chain,
+    parent_child=parent_child_chain,
+    section=section_chunking_chain,
+)
 
-    return {
-        "recursive": recursive_chunks,
-        "semantic": semantic_chunks,
-        "parent_child": parent_child_result["child_chunks"],
-        "parent_mapping": parent_child_result["parent_mapping"],
-        "section": section_chunks,
-    }
-
-
-recursive_chunking_chain = RunnableLambda(_recursive_split)
-all_strategies_chain = RunnableLambda(_all_strategies)

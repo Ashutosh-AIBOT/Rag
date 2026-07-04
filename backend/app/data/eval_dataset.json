@@ -1,0 +1,127 @@
+[
+  {
+    "question": "What is the primary contribution of the Attention Is All You Need paper?",
+    "reference_answer": "The paper introduces the Transformer, a novel network architecture based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.",
+    "strategy": "vector"
+  },
+  {
+    "question": "Explain the self-attention mechanism.",
+    "reference_answer": "Self-attention, or intra-attention, relates different positions of a single sequence to compute a representation of the sequence.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What are the advantages of the Transformer architecture over RNNs?",
+    "reference_answer": "Transformers allow for significantly more parallelization and require less time to train compared to recurrent networks like LSTM or GRU.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What is multi-head attention?",
+    "reference_answer": "Multi-head attention allows the model to jointly attend to information from different representation subspaces at different positions.",
+    "strategy": "vector"
+  },
+  {
+    "question": "What role do positional encodings play in Transformers?",
+    "reference_answer": "Since the model contains no recurrence or convolution, positional encodings are added to the input embeddings to inject information about the order of tokens in the sequence.",
+    "strategy": "vector"
+  },
+  {
+    "question": "Who are the authors of the Attention Is All You Need paper?",
+    "reference_answer": "The authors are Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, and Illia Polosukhin.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What is the feed-forward network component in the Transformer?",
+    "reference_answer": "Each encoder and decoder layer contains a fully connected feed-forward network consisting of two linear transformations with a ReLU activation in between.",
+    "strategy": "vector"
+  },
+  {
+    "question": "What datasets were used for machine translation in the paper?",
+    "reference_answer": "The paper evaluated the model on the WMT 2014 English-to-German and WMT 2014 English-to-French translation datasets.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "How does the Transformer handle seq-to-seq tasks without recurrence?",
+    "reference_answer": "By using stacked self-attention and point-wise fully connected layers in both the encoder and decoder.",
+    "strategy": "vector"
+  },
+  {
+    "question": "What is the complexity per layer for self-attention?",
+    "reference_answer": "The computational complexity per layer is O(n^2 * d), where n is the sequence length and d is the representation dimension.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "Explain the scaled dot-product attention formula.",
+    "reference_answer": "Attention(Q, K, V) = softmax( (Q * K^T) / sqrt(d_k) ) * V, where Q, K, and V are queries, keys, and values, and d_k is the dimension of the keys.",
+    "strategy": "vector"
+  },
+  {
+    "question": "What optimization algorithm was used to train the Transformer?",
+    "reference_answer": "The models were trained using the Adam optimizer with a custom learning rate schedule that increases linearly during warmup and decreases proportionally to the inverse square root of the step number.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What was the BLEU score achieved on the English-to-German translation task?",
+    "reference_answer": "The big Transformer model achieved a BLEU score of 28.4 on the WMT 2014 English-to-German task, establishing a new state of the art.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What model size variants (base vs big) were compared in the paper?",
+    "reference_answer": "The base model used d_model=512, d_ff=2048, and 8 attention heads. The big model used d_model=1024, d_ff=4096, and 16 attention heads.",
+    "strategy": "vector"
+  },
+  {
+    "question": "Why is self-attention faster to train than recurrent neural networks?",
+    "reference_answer": "Recurrent operations process tokens sequentially (O(n) sequential operations), whereas self-attention connects all positions with a constant number of sequentially executed operations (O(1) sequential operations), allowing full parallelization.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What dropout rate was used during training in the paper?",
+    "reference_answer": "A dropout rate of 0.1 was applied to the output of each sub-layer, to the sums of the embeddings and positional encodings, and to the attention weights.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What is the label smoothing value used in the Transformer?",
+    "reference_answer": "The paper used a label smoothing value of epsilon_ls = 0.1, which hurts perplexity but improves accuracy and BLEU score.",
+    "strategy": "vector"
+  },
+  {
+    "question": "How many encoder and decoder layers are stacked in the Transformer?",
+    "reference_answer": "The model stacks N = 6 identical layers for both the encoder and the decoder.",
+    "strategy": "vector"
+  },
+  {
+    "question": "What is the role of residual connections in the Transformer?",
+    "reference_answer": "Residual connections are employed around each of the sub-layers (followed by layer normalization) to help gradients flow and enable training of deep networks.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What was the training duration for the base Transformer model?",
+    "reference_answer": "The base models were trained for 100,000 steps, which took about 12 hours on 8 NVIDIA P100 GPUs.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What was the training duration for the big Transformer model?",
+    "reference_answer": "The big models were trained for 300,000 steps, taking approximately 3.5 days on 8 NVIDIA P100 GPUs.",
+    "strategy": "vector"
+  },
+  {
+    "question": "What are the three ways multi-head attention is used in the encoder-decoder model?",
+    "reference_answer": "It is used as encoder-decoder attention (queries from decoder, keys/values from encoder), encoder self-attention, and masked decoder self-attention.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "Explain the masking in the decoder self-attention layer?",
+    "reference_answer": "Masking prevents positions from attending to subsequent positions, ensuring that predictions for position i can depend only on the known outputs at positions less than i.",
+    "strategy": "vector"
+  },
+  {
+    "question": "How do the authors compute the positional encoding values?",
+    "reference_answer": "They use sine and cosine functions of different frequencies: PE(pos, 2i) = sin(pos / 10000^(2i/d_model)) and PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model)).",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What is the total number of parameters in the big Transformer model?",
+    "reference_answer": "The big Transformer model contains 213 million parameters.",
+    "strategy": "vector"
+  }
+]
