@@ -85,6 +85,9 @@ class LLMManager:
     def get_llm(self) -> Any:
         return self.get_llm_chain()
 
+    def is_loaded(self) -> bool:
+        return bool(self._loaded_llms)
+
 
 llm_manager = LLMManager()
 

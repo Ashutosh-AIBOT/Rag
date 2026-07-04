@@ -32,6 +32,10 @@ def _store(data: dict) -> IngestionResult:
     for strategy_name, chunks in chunks_result.items():
         if strategy_name == "parent_mapping":
             continue
+        if isinstance(chunks, dict):
+            if "child_chunks" in chunks:
+                all_chunks.extend(chunks["child_chunks"])
+            continue
         all_chunks.extend(chunks)
 
     texts = [chunk.page_content for chunk in all_chunks]

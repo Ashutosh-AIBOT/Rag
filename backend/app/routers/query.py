@@ -8,15 +8,15 @@ from app.services.rag_chain import build_rag_chain
 import asyncio
 
 logger = get_logger(__name__)
-router = APIRouter(prefix="/api", tags=["query"])
+router = APIRouter(prefix="/query", tags=["query"])
 
 
-@router.post("/query", response_model=QueryResponse)
+@router.post("", response_model=QueryResponse)
 async def query_documents(request: QueryRequest):
     try:
-        docs = retrieval_service.search(
-            query=request.question,
-            k=request.k,
+        docs = await asyncio.to_thread(
+            retrieval_service.invoke,
+            {"query": request.question, "k": request.k}
         )
         context = "\n\n".join([doc.page_content for doc in docs])
         chain = build_rag_chain()
@@ -33,13 +33,13 @@ async def query_documents(request: QueryRequest):
         raise
 
 
-@router.post("/query/stream")
+@router.post("/stream")
 async def query_stream(request: QueryRequest):
     async def event_generator():
         try:
-            docs = retrieval_service.search(
-                query=request.question,
-                k=request.k,
+            docs = await asyncio.to_thread(
+                retrieval_service.invoke,
+                {"query": request.question, "k": request.k}
             )
             context = "\n\n".join([doc.page_content for doc in docs])
             chain = build_rag_chain()

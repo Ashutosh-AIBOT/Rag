@@ -5,6 +5,7 @@ from app.core.startup import init_sqlite_wal, check_sqlite_health
 from app.embeddings.sentence_transformer import load_embedding_model
 from app.vectorstore.chroma import initialize_chroma
 from app.llm.manager import llm_manager
+from app.services.retrieval import set_vectorstore
 
 logger = get_logger(__name__)
 
@@ -22,6 +23,7 @@ async def lifespan(app: FastAPI):
 
     vectorstore = initialize_chroma(embedding_model)
     app.state.vectorstore = vectorstore
+    set_vectorstore(vectorstore)
 
     llm_manager.initialize()
     llm_manager.load_all_models()
