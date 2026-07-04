@@ -1,65 +1,77 @@
-import uuid
 from pathlib import Path
-
-from langchain_core.documents import Document
-from langchain_core.runnables import RunnableLambda, RunnablePassthrough
-
+from langchain_core.runnables import RunnableLambda
 from app.core.logging import get_logger
-from app.services.validators import validate_all
 from app.services.loaders import load_chain
-from app.services.chunking import split_chain
-from app.database.database import insert_document, update_document_chunk_count
+from app.services.chunking_strategies import all_strategies_chain
+from app.database.database import get_document_by_filename, update_document_chunk_count, update_document_status, insert_parent_document
 from app.vectorstore.chroma import add_documents_to_chroma
 from app.models.schemas import IngestionResult
 
 logger = get_logger(__name__)
 
 
-def _validate(file_path: str) -> dict:
-    existing_id = validate_all(file_path)
-    if existing_id:
-        return {"file_path": file_path, "doc_id": existing_id, "duplicate": True}
-    doc_id = str(uuid.uuid4())
-    return {"file_path": file_path, "doc_id": doc_id, "duplicate": False}
+def _validate(data: dict) -> dict:
+    file_path = data["file_path"]
+    doc_id = data["doc_id"]
+    existing = get_document_by_filename(Path(file_path).name)
+    if existing:
+        data["doc_id"] = existing["id"]
+        data["duplicate"] = True
+        return data
+    data["duplicate"] = False
+    return data
 
 
 def _store(data: dict) -> IngestionResult:
-    chunks = data["chunks"]
+    chunks_result = data["chunks"]
     doc_id = data["doc_id"]
     file_path = data["file_path"]
     filename = Path(file_path).name
 
-    texts = [chunk.page_content for chunk in chunks]
+    all_chunks = []
+    for strategy_name, chunks in chunks_result.items():
+        if strategy_name == "parent_mapping":
+            continue
+        all_chunks.extend(chunks)
+
+    texts = [chunk.page_content for chunk in all_chunks]
     metadatas = [
         {
             "source": filename,
             "page": chunk.metadata.get("page", 0),
-            "strategy": "recursive",
+            "strategy": chunk.metadata.get("strategy", "recursive"),
             "doc_id": doc_id,
+            "section": chunk.metadata.get("section", ""),
         }
-        for chunk in chunks
+        for chunk in all_chunks
     ]
-    ids = [f"{doc_id}_chunk_{i}" for i in range(len(chunks))]
+    ids = [f"{doc_id}_chunk_{i}" for i in range(len(all_chunks))]
 
     add_documents_to_chroma(data["chroma_store"], texts, metadatas, ids)
 
-    file_size = Path(file_path).stat().st_size
-    insert_document(
+    for mapping in chunks_result.get("parent_mapping", []):
+        insert_parent_document(
+            parent_id=mapping["parent_id"],
+            document_id=doc_id,
+            parent_content=mapping["parent_content"],
+            chunk_index=0,
+        )
+
+    update_document_chunk_count(doc_id, len(all_chunks))
+    update_document_status(doc_id, "completed")
+
+    logger.info(f"Ingestion complete: {filename} - {len(all_chunks)} chunks")
+    return IngestionResult(
         doc_id=doc_id,
         filename=filename,
-        file_type=Path(file_path).suffix.lower(),
-        file_size=file_size,
-        total_pages=len(chunks),
+        chunks=len(all_chunks),
+        duplicate=data["duplicate"],
     )
-    update_document_chunk_count(doc_id, len(chunks))
-
-    print(f"[stage01 | ingestion | 011-A] OK: Ingestion complete - {filename}")
-    return IngestionResult(doc_id=doc_id, filename=filename, chunks=len(chunks), duplicate=data["duplicate"])
 
 
 def _load_and_split(data: dict) -> dict:
     documents = load_chain.invoke(data["file_path"])
-    chunks = split_chain.invoke(documents)
+    chunks = all_strategies_chain.invoke(documents)
     data["chunks"] = chunks
     return data
 

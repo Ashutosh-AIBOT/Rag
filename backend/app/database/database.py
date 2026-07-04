@@ -19,11 +19,9 @@ def get_db():
 
 def insert_document(doc_id, filename, file_type, file_size, total_pages=0, tags=""):
     if not doc_id or not filename or not file_type:
-        logger.error("Missing required fields")
         raise ValueError("doc_id, filename, file_type are required")
 
     if file_size < 0:
-        logger.error("Invalid file_size")
         raise ValueError("file_size cannot be negative")
 
     conn = None
@@ -47,7 +45,7 @@ def insert_document(doc_id, filename, file_type, file_size, total_pages=0, tags=
 
 def get_document(doc_id):
     if not doc_id:
-        logger.error("Missing doc_id")
+        print("[stage01 | database | 012-C] FAIL: Missing doc_id")
         raise ValueError("doc_id is required")
 
     try:
@@ -55,18 +53,18 @@ def get_document(doc_id):
         row = conn.execute("SELECT * FROM documents WHERE id = ?", (doc_id,)).fetchone()
         conn.close()
         if row:
-            logger.info(f"Document found: {doc_id}")
+            print(f"[stage01 | database | 012-C] OK: Document found - {doc_id}")
             return dict(row)
-        logger.warning(f"Document not found: {doc_id}")
+        print(f"[stage01 | database | 012-C] WARN: Document not found - {doc_id}")
         return None
     except Exception as e:
-        logger.error(f"Get failed: {e}")
+        print(f"[stage01 | database | 012-C] FAIL: Get failed - {e}")
         raise
 
 
 def get_document_by_filename(filename):
     if not filename:
-        logger.error("Missing filename")
+        print("[stage01 | database | 012-D] FAIL: Missing filename")
         raise ValueError("filename is required")
 
     try:
@@ -74,12 +72,12 @@ def get_document_by_filename(filename):
         row = conn.execute("SELECT * FROM documents WHERE filename = ?", (filename,)).fetchone()
         conn.close()
         if row:
-            logger.info(f"Duplicate found: {filename}")
+            print(f"[stage01 | database | 012-D] OK: Duplicate found - {filename}")
             return dict(row)
-        logger.info(f"No duplicate: {filename}")
+        print(f"[stage01 | database | 012-D] OK: No duplicate - {filename}")
         return None
     except Exception as e:
-        logger.error(f"Check failed: {e}")
+        print(f"[stage01 | database | 012-D] FAIL: Check failed - {e}")
         raise
 
 
@@ -88,16 +86,16 @@ def list_documents():
         conn = get_db()
         rows = conn.execute("SELECT * FROM documents ORDER BY upload_date DESC").fetchall()
         conn.close()
-        logger.info(f"Listed {len(rows)} documents")
+        print(f"[stage01 | database | 012-E] OK: Listed {len(rows)} documents")
         return [dict(row) for row in rows]
     except Exception as e:
-        logger.error(f"List failed: {e}")
+        print(f"[stage01 | database | 012-E] FAIL: List failed - {e}")
         raise
 
 
 def delete_document(doc_id):
     if not doc_id:
-        logger.error("Missing doc_id")
+        print("[stage01 | database | 012-F] FAIL: Missing doc_id")
         raise ValueError("doc_id is required")
 
     conn = None
@@ -106,9 +104,9 @@ def delete_document(doc_id):
         conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
         conn.execute("DELETE FROM parent_documents WHERE document_id = ?", (doc_id,))
         conn.commit()
-        logger.info(f"Document deleted: {doc_id}")
+        print(f"[stage01 | database | 012-F] OK: Document deleted - {doc_id}")
     except Exception as e:
-        logger.error(f"Delete failed: {e}")
+        print(f"[stage01 | database | 012-F] FAIL: Delete failed - {e}")
         if conn:
             conn.rollback()
         raise
@@ -119,11 +117,11 @@ def delete_document(doc_id):
 
 def update_document_chunk_count(doc_id, chunk_count):
     if not doc_id:
-        logger.error("Missing doc_id")
+        print("[stage01 | database | 012-G] FAIL: Missing doc_id")
         raise ValueError("doc_id is required")
 
     if chunk_count < 0:
-        logger.error("Invalid chunk_count")
+        print("[stage01 | database | 012-G] FAIL: Invalid chunk_count")
         raise ValueError("chunk_count cannot be negative")
 
     conn = None
@@ -131,30 +129,9 @@ def update_document_chunk_count(doc_id, chunk_count):
         conn = get_db()
         conn.execute("UPDATE documents SET chunk_count = ? WHERE id = ?", (chunk_count, doc_id))
         conn.commit()
-        logger.info(f"Chunk count updated: {chunk_count}")
+        print(f"[stage01 | database | 012-G] OK: Chunk count updated - {chunk_count}")
     except Exception as e:
-        logger.error(f"Update failed: {e}")
-        if conn:
-            conn.rollback()
-        raise
-    finally:
-        if conn:
-            conn.close()
-
-
-def update_document_status(doc_id, status):
-    if not doc_id:
-        logger.error("Missing doc_id")
-        raise ValueError("doc_id is required")
-
-    conn = None
-    try:
-        conn = get_db()
-        conn.execute("UPDATE documents SET status = ? WHERE id = ?", (status, doc_id))
-        conn.commit()
-        logger.info(f"Document status updated: {status}")
-    except Exception as e:
-        logger.error(f"Status update failed: {e}")
+        print(f"[stage01 | database | 012-G] FAIL: Update failed - {e}")
         if conn:
             conn.rollback()
         raise
@@ -165,7 +142,7 @@ def update_document_status(doc_id, status):
 
 def insert_parent_document(parent_id, document_id, parent_content, chunk_index):
     if not parent_id or not document_id or not parent_content:
-        logger.error("Missing required fields")
+        print("[stage01 | database | 012-H] FAIL: Missing required fields")
         raise ValueError("parent_id, document_id, parent_content are required")
 
     conn = None
@@ -176,9 +153,9 @@ def insert_parent_document(parent_id, document_id, parent_content, chunk_index):
             (parent_id, document_id, parent_content, chunk_index),
         )
         conn.commit()
-        logger.info("Parent document inserted")
+        print(f"[stage01 | database | 012-H] OK: Parent document inserted")
     except Exception as e:
-        logger.error(f"Insert failed: {e}")
+        print(f"[stage01 | database | 012-H] FAIL: Insert failed - {e}")
         if conn:
             conn.rollback()
         raise
@@ -189,7 +166,7 @@ def insert_parent_document(parent_id, document_id, parent_content, chunk_index):
 
 def get_parent_document(parent_id):
     if not parent_id:
-        logger.error("Missing parent_id")
+        print("[stage01 | database | 012-I] FAIL: Missing parent_id")
         raise ValueError("parent_id is required")
 
     try:
@@ -197,10 +174,10 @@ def get_parent_document(parent_id):
         row = conn.execute("SELECT parent_content FROM parent_documents WHERE id = ?", (parent_id,)).fetchone()
         conn.close()
         if row:
-            logger.info("Parent document found")
+            print(f"[stage01 | database | 012-I] OK: Parent document found")
             return row["parent_content"]
-        logger.warning("Parent document not found")
+        print(f"[stage01 | database | 012-I] WARN: Parent document not found")
         return None
     except Exception as e:
-        logger.error(f"Get failed: {e}")
+        print(f"[stage01 | database | 012-I] FAIL: Get failed - {e}")
         raise
