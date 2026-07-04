@@ -1,4 +1,5 @@
 import sqlite3
+from pathlib import Path
 from app.config import settings
 from app.core.logging import get_logger
 
@@ -21,7 +22,7 @@ def init_sqlite_wal():
                 upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 tags TEXT DEFAULT '',
                 chunk_count INTEGER DEFAULT 0,
-                status TEXT DEFAULT 'pending'
+                status TEXT DEFAULT 'processing'
             )
         """)
         conn.execute("""

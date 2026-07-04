@@ -38,18 +38,8 @@ class DocumentResponse(BaseModel):
     upload_date: str
     tags: str
     chunk_count: int
+    status: str
 
 
 class DocumentListResponse(BaseModel):
     documents: list[DocumentResponse]
-
-
-class IngestionResult(BaseModel):
-    doc_id: str
-    filename: str
-    chunks: int
-    duplicate: bool
-
-
-class ErrorResponse(BaseModel):
-    detail: str
