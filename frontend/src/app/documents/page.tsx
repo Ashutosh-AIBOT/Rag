@@ -59,6 +59,17 @@ export default function DocumentsPage() {
     fetchDocuments();
   }, []);
 
+  useEffect(() => {
+    const hasProcessing = documents.some(doc => doc.status === "processing");
+    if (!hasProcessing) return;
+
+    const interval = setInterval(() => {
+      fetchDocuments();
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [documents]);
+
   const fetchDocuments = async () => {
     try {
       const res = await fetch(`${API_URL}/documents`);
@@ -101,8 +112,7 @@ export default function DocumentsPage() {
         throw new Error(`Ingestion failed with status: ${res.status}`);
       }
 
-      const data = await res.json();
-      setUploadMessage(`Successfully ingested! Chunks: ${data.chunk_count || 0}`);
+      setUploadMessage("Document uploaded successfully. Chunking strategies are processing in the background...");
       setSelectedFile(null);
       setTagsInput("");
       
@@ -341,7 +351,7 @@ export default function DocumentsPage() {
               <div className="space-y-4">
                 {/* Strategy selector for previews */}
                 <div className="flex flex-wrap gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-850">
-                  {["recursive", "parent_child", "section", "semantic"].map((strat) => (
+                  {["recursive", "parent-child", "section", "semantic"].map((strat) => (
                     <button
                       key={strat}
                       onClick={() => setActiveStrategyFilter(strat)}
@@ -351,7 +361,7 @@ export default function DocumentsPage() {
                           : "text-slate-500 hover:text-slate-300"
                       }`}
                     >
-                      {strat.replace("_", "-")}
+                      {strat}
                     </button>
                   ))}
                 </div>

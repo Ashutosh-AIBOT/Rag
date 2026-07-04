@@ -48,7 +48,7 @@ interface CompareResult {
 export default function ComparePage() {
   const [question, setQuestion] = useState("");
   const [strategyA, setStrategyA] = useState("vector");
-  const [strategyB, setStrategyB] = useState("hybrid_rerank");
+  const [strategyB, setStrategyB] = useState("hybrid-rerank");
   
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<CompareResult | null>(null);
@@ -142,11 +142,11 @@ export default function ComparePage() {
               >
                 <option value="vector">Basic Vector</option>
                 <option value="hybrid">Hybrid (BM25 + Vector)</option>
-                <option value="hybrid_rerank">Hybrid + Rerank</option>
-                <option value="parent_child">Parent-Child Retriever</option>
-                <option value="multi_query">Multi-Query Expansion</option>
+                <option value="hybrid-rerank">Hybrid + Rerank</option>
+                <option value="parent-child">Parent-Child Retriever</option>
+                <option value="multi-query">Multi-Query Expansion</option>
                 <option value="hyde">HyDE (Hypothetical Doc)</option>
-                <option value="step_back">Step-Back Prompting</option>
+                <option value="step-back">Step-Back Prompting</option>
                 <option value="decomposition">Query Decomposition</option>
               </select>
             </div>
@@ -164,11 +164,11 @@ export default function ComparePage() {
               >
                 <option value="vector">Basic Vector</option>
                 <option value="hybrid">Hybrid (BM25 + Vector)</option>
-                <option value="hybrid_rerank">Hybrid + Rerank (Default)</option>
-                <option value="parent_child">Parent-Child Retriever</option>
-                <option value="multi_query">Multi-Query Expansion</option>
+                <option value="hybrid-rerank">Hybrid + Rerank (Default)</option>
+                <option value="parent-child">Parent-Child Retriever</option>
+                <option value="multi-query">Multi-Query Expansion</option>
                 <option value="hyde">HyDE (Hypothetical Doc)</option>
-                <option value="step_back">Step-Back Prompting</option>
+                <option value="step-back">Step-Back Prompting</option>
                 <option value="decomposition">Query Decomposition</option>
               </select>
             </div>

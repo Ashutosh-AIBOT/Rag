@@ -38,6 +38,11 @@ def deduplicate_documents(docs: list[Document]) -> list[Document]:
     return deduped
 
 
+def _normalize_strategy(strategy: str) -> str:
+    """Normalize strategy names: accept both hyphens and underscores."""
+    return strategy.replace("_", "-")
+
+
 def search_documents(
     query: str,
     k: int = 5,
@@ -47,6 +52,7 @@ def search_documents(
     rerank_top_k: int = 3,
     vectorstore = None,
 ) -> dict:
+    strategy = _normalize_strategy(strategy)
     trace = {
         "original_query": query,
         "strategy": strategy,
@@ -68,13 +74,18 @@ def search_documents(
         hybrid = get_hybrid_retriever(vectorstore)
         docs = hybrid.search(query, k=k)
 
+    elif strategy == "hybrid-rerank":
+        hybrid = get_hybrid_retriever(vectorstore)
+        docs = hybrid.search(query, k=max(k, 20))
+        rerank = True
+
     elif strategy == "parent-child":
         # Force filter to parent-child strategy
         pc_filters = dict(filters or {})
         pc_filters["strategy"] = "parent-child"
         docs = retrieval_service.invoke({"query": query, "k": k, "filters": pc_filters, "vectorstore": vectorstore})
 
-    elif strategy == "multi-query":
+    elif strategy in ("multi-query", "multi-query-expansion"):
         chain = build_multi_query_chain()
         output = chain.invoke({"question": query})
         phrasings = [q.strip() for q in output.strip().split("\n") if q.strip()]
@@ -93,7 +104,7 @@ def search_documents(
         
         docs = retrieval_service.invoke({"query": hypothetical_doc, "k": k, "filters": filters, "vectorstore": vectorstore})
 
-    elif strategy == "step-back":
+    elif strategy in ("step-back", "step-back-prompting"):
         chain = build_step_back_chain()
         step_back_query = chain.invoke({"question": query})
         trace["transformed_queries"] = [step_back_query]

@@ -1,7 +1,9 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
-load_dotenv()
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 
 class Settings(BaseSettings):
@@ -17,7 +19,7 @@ class Settings(BaseSettings):
     BM25_SPARSE_WEIGHT: float = 0.5
     RRF_K: int = 60
 
-    model_config = {"env_file": ".env", "extra": "ignore"}
+    model_config = {"env_file": str(env_path), "extra": "ignore"}
 
 
 settings = Settings()

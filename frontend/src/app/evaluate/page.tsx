@@ -149,9 +149,9 @@ export default function EvaluatePage() {
 
   // Compile aggregate metrics per strategy
   const getStrategyAggregates = () => {
-    const strategies = Array.from(new Set(evalResults.map(r => r.strategy || "hybrid_rerank")));
+    const strategies = Array.from(new Set(evalResults.map(r => r.strategy || "hybrid-rerank")));
     return strategies.map(strat => {
-      const filtered = evalResults.filter(r => (r.strategy || "hybrid_rerank") === strat);
+      const filtered = evalResults.filter(r => (r.strategy || "hybrid-rerank") === strat);
       const count = filtered.length;
       return {
         strategy: strat.toUpperCase(),

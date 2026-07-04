@@ -51,22 +51,19 @@ async def upload_document(
 
         existing = get_document_by_filename(file.filename)
         if existing:
-            file_path.unlink()
             if existing["status"] == "completed":
+                file_path.unlink()
                 return DocumentUploadResponse(
                     doc_id=existing["id"], filename=file.filename, message="Document already processed"
                 )
             elif existing["status"] == "processing":
+                file_path.unlink()
                 return DocumentUploadResponse(
                     doc_id=existing["id"], filename=file.filename, message="Document is being processed"
                 )
             else:
-                update_document_status(existing["id"], "processing")
-                chroma_store = request.app.state.vectorstore
-                background_tasks.add_task(process_document, str(file_path), existing["id"], chroma_store)
-                return DocumentUploadResponse(
-                    doc_id=existing["id"], filename=file.filename, message="Processing document"
-                )
+                # Failed: remove database entry so it can be re-inserted and processed fresh
+                delete_document(existing["id"])
 
         insert_document(
             doc_id=doc_id,

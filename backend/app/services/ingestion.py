@@ -58,9 +58,14 @@ def _store(data: dict) -> IngestionResult:
     if "parent_child" in chunks_result and isinstance(chunks_result["parent_child"], dict):
         parent_mapping = chunks_result["parent_child"].get("parent_mapping", [])
 
+    inserted_parent_ids = set()
     for mapping in parent_mapping:
+        p_id = mapping["parent_id"]
+        if p_id in inserted_parent_ids:
+            continue
+        inserted_parent_ids.add(p_id)
         insert_parent_document(
-            parent_id=mapping["parent_id"],
+            parent_id=p_id,
             document_id=doc_id,
             parent_content=mapping["parent_content"],
             chunk_index=0,

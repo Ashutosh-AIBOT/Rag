@@ -230,6 +230,8 @@ async def get_query_chunks(query_id: str):
 async def query_stream(request: QueryRequest, req: Request):
     async def event_generator():
         try:
+            start_time = time.time()
+            query_id = str(uuid.uuid4())
             vectorstore = req.app.state.vectorstore
             search_res = await asyncio.to_thread(
                 search_documents,
@@ -242,15 +244,28 @@ async def query_stream(request: QueryRequest, req: Request):
                 vectorstore=vectorstore,
             )
             docs = search_res["documents"]
+            trace = search_res["trace"]
             context = "\n\n".join([doc.page_content for doc in docs])
             chain = build_rag_chain()
+            full_answer = ""
             async for chunk in chain.astream({
                 "context": context,
                 "question": request.question,
             }):
+                full_answer += chunk
                 yield f"data: {chunk}\n\n"
+
+            latency_ms = int((time.time() - start_time) * 1000)
+
+            # Save query history and pipeline trace
+            insert_query_history(query_id, request.question, full_answer, request.strategy, latency_ms)
+            trace["answer"] = full_answer
+            trace["latency_ms"] = latency_ms
+            trace_id = str(uuid.uuid4())
+            insert_pipeline_trace(trace_id, query_id, json.dumps(trace))
         except Exception as e:
             logger.error(f"Stream failed: {e}")
             yield f"data: Error: {str(e)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
