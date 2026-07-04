@@ -26,16 +26,51 @@ class BM25Retriever:
         logger.info(f"BM25 index built with {len(documents)} documents")
         self.save()
 
-    def search(self, query: str, k: int = 5) -> list[Document]:
+    def search(self, query: str, k: int = 5, filters: dict = None) -> list[Document]:
         if not self.bm25:
             logger.warning("BM25 index not built")
+            return []
+
+        # Apply metadata filters to locate eligible document indices
+        filtered_indices = []
+        for idx, doc in enumerate(self.documents):
+            match = True
+            if filters:
+                for key, val in filters.items():
+                    if val is not None and val != "":
+                        doc_val = doc.metadata.get(key)
+                        if key == "source":
+                            if isinstance(val, list):
+                                if doc_val not in val:
+                                    match = False
+                            elif isinstance(val, str) and "," in val:
+                                parts = [p.strip() for p in val.split(",") if p.strip()]
+                                if doc_val not in parts:
+                                    match = False
+                            elif doc_val != val:
+                                match = False
+                        elif key == "page":
+                            try:
+                                if int(doc_val) != int(val):
+                                    match = False
+                            except (ValueError, TypeError):
+                                match = False
+                        elif key == "strategy":
+                            if doc_val != val:
+                                match = False
+            if match:
+                filtered_indices.append(idx)
+
+        if not filtered_indices:
+            logger.info("BM25 search matched 0 documents with filters")
             return []
 
         tokenized_query = query.split()
         scores = self.bm25.get_scores(tokenized_query)
 
-        ranked_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
-        top_k_indices = ranked_indices[:k]
+        # Sort filtered documents by their score
+        ranked_filtered = sorted(filtered_indices, key=lambda idx: scores[idx], reverse=True)
+        top_k_indices = ranked_filtered[:k]
 
         results = []
         for idx in top_k_indices:
@@ -43,7 +78,7 @@ class BM25Retriever:
             doc.metadata["bm25_score"] = float(scores[idx])
             results.append(doc)
 
-        logger.info(f"BM25 search returned {len(results)} results")
+        logger.info(f"BM25 search returned {len(results)} results after applying filters")
         return results
 
     def save(self):
@@ -104,9 +139,9 @@ def build_bm25_index(documents: list[Document]):
     return _bm25_instance
 
 
-async def bm25_search_async(query: str, k: int = 5) -> list[Document]:
+async def bm25_search_async(query: str, k: int = 5, filters: dict = None) -> list[Document]:
     retriever = get_bm25_retriever()
-    return await asyncio.to_thread(retriever.search, query, k)
+    return await asyncio.to_thread(retriever.search, query, k, filters)
 
 
-bm25_retrieval_chain = RunnableLambda(lambda x: bm25_search_async(x["query"], x.get("k", 5)))
+bm25_retrieval_chain = RunnableLambda(lambda x: bm25_search_async(x["query"], x.get("k", 5), x.get("filters")))

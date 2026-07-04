@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Scale,
   Sparkles,
@@ -10,7 +10,8 @@ import {
   CheckCircle,
   HelpCircle,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Filter
 } from "lucide-react";
 
 const API_URL = "http://127.0.0.1:8000/api";
@@ -54,22 +55,126 @@ export default function ComparePage() {
   const [result, setResult] = useState<CompareResult | null>(null);
   const [error, setError] = useState("");
 
+  // Target document filters
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [showDocSelector, setShowDocSelector] = useState(false);
+  const [docSearch, setDocSearch] = useState("");
+
+  // Background task state
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [jobStatus, setJobStatus] = useState("idle");
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_URL}/documents`)
+      .then((r) => r.json())
+      .then((d) => setDocuments(d.documents || []))
+      .catch(() => {});
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const startPolling = (id: string, signal: AbortSignal) => {
+    const poll = async () => {
+      if (signal.aborted) return;
+      try {
+        const response = await fetch(`${API_URL}/jobs/${id}`, { signal });
+        if (!response.ok) {
+          throw new Error("Failed to fetch job status.");
+        }
+        const data = await response.json();
+        setJobStatus(data.status);
+        setProgress(data.progress);
+        
+        if (data.status === "completed") {
+          setResult(data.result);
+          setIsLoading(false);
+          setJobId(null);
+        } else if (data.status === "failed") {
+          setError(data.error || "Job failed.");
+          setIsLoading(false);
+          setJobId(null);
+        } else if (data.status === "cancelled") {
+          setError("Comparison was cancelled.");
+          setIsLoading(false);
+          setJobId(null);
+        } else {
+          // Poll again in 1 second
+          pollingTimeoutRef.current = setTimeout(poll, 1000);
+        }
+      } catch (e: any) {
+        if (e.name !== "AbortError") {
+          setError(e.message || "Error polling job status.");
+          setIsLoading(false);
+          setJobId(null);
+        }
+      }
+    };
+    
+    pollingTimeoutRef.current = setTimeout(poll, 1000);
+  };
+
+  const handleCancel = async () => {
+    if (jobId) {
+      try {
+        await fetch(`${API_URL}/jobs/${jobId}/cancel`, { method: "POST" });
+      } catch (e) {
+        console.error("Cancel API call failed:", e);
+      }
+    }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+    }
+    setIsLoading(false);
+    setJobStatus("cancelled");
+    setJobId(null);
+    setProgress(0);
+  };
+
   const handleCompare = async () => {
     if (!question.trim()) return;
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     setIsLoading(true);
     setError("");
     setResult(null);
+    setJobStatus("pending");
+    setProgress(0);
 
     try {
-      const res = await fetch(`${API_URL}/query/compare`, {
+      const res = await fetch(`${API_URL}/query/compare/async`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question,
           strategy_a: strategyA,
           strategy_b: strategyB,
+          filters: selectedSources.length > 0 ? { source: selectedSources } : undefined,
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -77,12 +182,17 @@ export default function ComparePage() {
       }
 
       const data = await res.json();
-      setResult(data);
+      setJobId(data.job_id);
+      setJobStatus("pending");
+      startPolling(data.job_id, controller.signal);
     } catch (e: any) {
-      console.error(e);
-      setError(e.message || "An error occurred during comparison.");
-    } finally {
-      setIsLoading(false);
+      if (e.name === "AbortError") {
+        console.log("Comparison request aborted.");
+      } else {
+        console.error(e);
+        setError(e.message || "An error occurred during comparison.");
+        setIsLoading(false);
+      }
     }
   };
 
@@ -130,6 +240,81 @@ export default function ComparePage() {
               className="w-full rounded-xl border border-slate-800 bg-slate-950 py-3.5 px-4 text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-base"
               disabled={isLoading}
             />
+          </div>
+
+          {/* Collapsible Document Selector */}
+          <div className="border-t border-b border-slate-800/60 py-3 my-1">
+            <button
+              type="button"
+              onClick={() => setShowDocSelector(!showDocSelector)}
+              className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors uppercase tracking-wider"
+            >
+              <Filter className="h-3.5 w-3.5 text-blue-400" />
+              <span>Target Documents ({selectedSources.length === 0 ? "All" : `${selectedSources.length} selected`})</span>
+            </button>
+            
+            {showDocSelector && (
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSources(documents.map(d => d.filename))}
+                      className="text-[10px] font-bold text-blue-400 hover:text-blue-300 uppercase tracking-wider"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-slate-800 text-[10px]">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSources([])}
+                      className="text-[10px] font-bold text-slate-500 hover:text-slate-400 uppercase tracking-wider"
+                    >
+                      Clear Selection
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search matching files..."
+                    value={docSearch}
+                    onChange={(e) => setDocSearch(e.target.value)}
+                    className="w-full rounded-lg border border-slate-850 bg-slate-950 px-3 py-1.5 text-xs text-slate-350 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="rounded-xl border border-slate-850 bg-slate-950/40 p-2.5 max-h-[140px] overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-slate-800">
+                  {documents.filter(d => d.filename.toLowerCase().includes(docSearch.toLowerCase())).length > 0 ? (
+                    documents.filter(d => d.filename.toLowerCase().includes(docSearch.toLowerCase())).map((d) => {
+                      const isChecked = selectedSources.includes(d.filename);
+                      return (
+                        <label
+                          key={d.id}
+                          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-slate-350 cursor-pointer transition-colors hover:bg-slate-900/65 ${
+                            isChecked ? "bg-blue-600/10 text-blue-350 font-medium" : ""
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              if (isChecked) {
+                                setSelectedSources(selectedSources.filter(s => s !== d.filename));
+                              } else {
+                                setSelectedSources([...selectedSources, d.filename]);
+                              }
+                            }}
+                            className="rounded border-slate-800 bg-slate-950 text-blue-600 focus:ring-0 focus:ring-offset-0 h-3.5 w-3.5"
+                          />
+                          <span className="truncate text-slate-300" title={d.filename}>{d.filename}</span>
+                        </label>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-6 text-xs text-slate-600 italic">No matching files found.</div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4 items-end">
@@ -187,6 +372,39 @@ export default function ComparePage() {
           </div>
         </div>
       </div>
+
+      {/* Background Job Progress Dashboard */}
+      {isLoading && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-xl flex flex-col gap-4 animate-pulse">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-2 w-2 rounded-full bg-blue-500 animate-ping" />
+              <h3 className="text-sm font-semibold text-slate-200">
+                Background worker executing strategy comparison...
+              </h3>
+            </div>
+            <button
+              onClick={handleCancel}
+              className="text-xs font-semibold text-rose-400 hover:text-rose-350 transition-colors uppercase tracking-wider bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-lg"
+            >
+              Cancel Job
+            </button>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs text-slate-500">
+              <span>Status: <strong className="text-blue-400 uppercase">{jobStatus}</strong></span>
+              <span>{Math.round(progress * 100)}% Complete</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500 ease-out"
+                style={{ width: `${progress * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="flex items-center gap-3 rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-rose-400">

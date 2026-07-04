@@ -65,6 +65,18 @@ def init_sqlite_wal():
                 FOREIGN KEY (query_id) REFERENCES query_history(id)
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS background_jobs (
+                id TEXT PRIMARY KEY,
+                type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                progress REAL DEFAULT 0.0,
+                result TEXT,
+                error TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         conn.commit()
         conn.close()
         logger.info("SQLite WAL initialized")

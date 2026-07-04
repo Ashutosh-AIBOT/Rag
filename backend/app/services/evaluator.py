@@ -35,3 +35,40 @@ async def evaluate_faithfulness(question: str, context: str, answer: str) -> flo
     except Exception as e:
         logger.error(f"Faithfulness evaluation failed: {e}")
         return 0.0
+
+
+def evaluate_with_ragas(question: str, context: str, answer: str, reference: str) -> dict:
+    try:
+        from datasets import Dataset
+        from ragas import evaluate
+        from ragas.metrics import faithfulness as r_faith, answer_relevancy as r_rel, context_precision as r_prec, context_recall as r_rec
+        from app.llm import get_llm_chain
+        from app.embeddings.sentence_transformer import get_embedding_model
+
+        data_dict = {
+            "user_input": [question],
+            "response": [answer],
+            "retrieved_contexts": [[context]],
+            "reference": [reference]
+        }
+        dataset = Dataset.from_dict(data_dict)
+        llm = get_llm_chain()
+        embeddings = get_embedding_model()
+
+        result = evaluate(
+            dataset=dataset,
+            metrics=[r_faith, r_rel, r_prec, r_rec],
+            llm=llm,
+            embeddings=embeddings,
+        )
+        scores = {
+            "faithfulness": float(result.get("faithfulness", 0.0)),
+            "relevancy": float(result.get("answer_relevancy", 0.0)),
+            "precision": float(result.get("context_precision", 0.0)),
+            "recall": float(result.get("context_recall", 0.0)),
+        }
+        logger.info(f"Ragas evaluation success: {scores}")
+        return scores
+    except Exception as e:
+        logger.error(f"Ragas evaluation failed, using custom metric fallback: {e}")
+        return {}

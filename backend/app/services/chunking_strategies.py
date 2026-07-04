@@ -26,22 +26,10 @@ def _recursive_split(documents: list[Document]) -> list[Document]:
     return chunks
 
 
-def _semantic_split(documents: list[Document]) -> list[Document]:
-    return semantic_chunking_chain.invoke(documents)
-
-
-def _parent_child_split(documents: list[Document]) -> dict:
-    return parent_child_chain.invoke(documents)
-
-
-def _section_split(documents: list[Document]) -> list[Document]:
-    return section_chunking_chain.invoke(documents)
-
-
 all_strategies_chain = RunnableParallel(
     recursive=RunnableLambda(_recursive_split),
-    semantic=RunnableLambda(_semantic_split),
-    parent_child=RunnableLambda(_parent_child_split),
-    section=RunnableLambda(_section_split),
+    semantic=semantic_chunking_chain,
+    parent_child=parent_child_chain,
+    section=section_chunking_chain,
 )
 

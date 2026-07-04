@@ -62,3 +62,23 @@ def delete_from_chroma(vectorstore: Chroma, filter_dict: dict) -> None:
     except Exception as e:
         logger.error(f"Delete failed: {e}")
         raise
+
+
+def initialize_chroma_gemini() -> Chroma:
+    try:
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+        chroma_client = chromadb.PersistentClient(
+            path=settings.CHROMA_PERSIST_DIRECTORY,
+            settings=ChromaSettings(anonymized_telemetry=False),
+        )
+        gemini_embed = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        vectorstore = Chroma(
+            client=chroma_client,
+            collection_name=settings.CHROMA_COLLECTION_NAME + "_gemini",
+            embedding_function=gemini_embed,
+        )
+        logger.info("Gemini Chroma collection ready")
+        return vectorstore
+    except Exception as e:
+        logger.error(f"Failed to initialize Gemini Chroma: {e}")
+        return None

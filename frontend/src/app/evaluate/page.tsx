@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   BarChart2,
   Play,
@@ -61,9 +61,26 @@ export default function EvaluatePage() {
   const [selectedTrace, setSelectedTrace] = useState<any | null>(null);
   const [isLoadingTrace, setIsLoadingTrace] = useState(false);
 
+  // Background worker states
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [jobStatus, setJobStatus] = useState("idle");
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     fetchDefaultDataset();
     fetchPastResults();
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+      }
+    };
   }, []);
 
   const fetchDefaultDataset = async () => {
@@ -90,19 +107,93 @@ export default function EvaluatePage() {
     }
   };
 
+  const startPolling = (id: string, signal: AbortSignal) => {
+    const poll = async () => {
+      if (signal.aborted) return;
+      try {
+        const response = await fetch(`${API_URL}/jobs/${id}`, { signal });
+        if (!response.ok) {
+          throw new Error("Failed to fetch job status.");
+        }
+        const data = await response.json();
+        setJobStatus(data.status);
+        setProgress(data.progress);
+        setProgressText(`Processing batch evaluation... ${Math.round(data.progress * 100)}%`);
+
+        if (data.status === "completed") {
+          setProgressText("Evaluation completed successfully!");
+          setIsRunning(false);
+          setJobId(null);
+          fetchPastResults();
+        } else if (data.status === "failed") {
+          setError(data.error || "Evaluation failed.");
+          setIsRunning(false);
+          setJobId(null);
+        } else if (data.status === "cancelled") {
+          setError("Evaluation was cancelled.");
+          setIsRunning(false);
+          setJobId(null);
+        } else {
+          // Poll again in 1 second
+          pollingTimeoutRef.current = setTimeout(poll, 1000);
+        }
+      } catch (e: any) {
+        if (e.name !== "AbortError") {
+          setError(e.message || "Error polling evaluation status.");
+          setIsRunning(false);
+          setJobId(null);
+        }
+      }
+    };
+
+    pollingTimeoutRef.current = setTimeout(poll, 1000);
+  };
+
+  const handleCancel = async () => {
+    if (jobId) {
+      try {
+        await fetch(`${API_URL}/jobs/${jobId}/cancel`, { method: "POST" });
+      } catch (e) {
+        console.error("Cancel API call failed:", e);
+      }
+    }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+    }
+    setIsRunning(false);
+    setProgressText("Evaluation cancelled.");
+    setJobStatus("cancelled");
+    setJobId(null);
+    setProgress(0);
+  };
+
   const runEvaluation = async () => {
     if (dataset.length === 0) {
       setError("No evaluation dataset loaded.");
       return;
     }
 
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsRunning(true);
     setError("");
+    setJobStatus("pending");
+    setProgress(0);
     setProgressText("Starting batch execution of 15 Q&A pairs across strategies...");
 
     try {
-      // We run the batch evaluation endpoint
-      const res = await fetch(`${API_URL}/evaluate/batch`, {
+      const res = await fetch(`${API_URL}/evaluate/batch/async`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -112,21 +203,25 @@ export default function EvaluatePage() {
             strategy: item.strategy,
           }))
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
         throw new Error(`Batch evaluation failed with status: ${res.status}`);
       }
 
-      setProgressText("Computing LLM-as-judge scores (Faithfulness, Relevancy, Precision, Recall)...");
-      await res.json();
-      setProgressText("Evaluation completed successfully!");
-      fetchPastResults();
+      const data = await res.json();
+      setJobId(data.job_id);
+      setJobStatus("pending");
+      startPolling(data.job_id, controller.signal);
     } catch (e: any) {
-      console.error(e);
-      setError(e.message || "An error occurred during evaluation.");
-    } finally {
-      setIsRunning(false);
+      if (e.name === "AbortError") {
+        console.log("Evaluation request aborted.");
+      } else {
+        console.error(e);
+        setError(e.message || "An error occurred during evaluation.");
+        setIsRunning(false);
+      }
     }
   };
 
@@ -203,9 +298,27 @@ export default function EvaluatePage() {
       </div>
 
       {isRunning && (
-        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 flex items-center gap-3">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-400 border-t-white flex-shrink-0" />
-          <span className="text-sm font-medium text-blue-400">{progressText}</span>
+        <div className="rounded-xl border border-blue-500/20 bg-slate-900/60 p-5 flex flex-col gap-3 shadow-xl backdrop-blur-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-white flex-shrink-0" />
+              <span className="text-sm font-semibold text-slate-200">{progressText}</span>
+            </div>
+            {jobId && (
+              <button
+                onClick={handleCancel}
+                className="text-xs font-semibold text-rose-400 hover:text-rose-350 transition-colors uppercase tracking-wider bg-rose-500/10 border border-rose-500/20 px-3 py-1 rounded-lg"
+              >
+                Cancel Evaluation
+              </button>
+            )}
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-300 ease-out"
+              style={{ width: `${progress * 100}%` }}
+            />
+          </div>
         </div>
       )}
 

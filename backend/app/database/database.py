@@ -370,3 +370,54 @@ def list_recent_queries(limit=10):
     except Exception as e:
         logger.error(f"List recent queries failed: {e}")
         raise
+
+
+def create_job(job_id: str, job_type: str):
+    conn = None
+    try:
+        conn = get_db()
+        conn.execute(
+            "INSERT INTO background_jobs (id, type, status, progress, created_at, updated_at) VALUES (?, ?, 'pending', 0.0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            (job_id, job_type),
+        )
+        conn.commit()
+        logger.info(f"Background job created: {job_id} ({job_type})")
+    except Exception as e:
+        logger.error(f"Failed to create background job: {e}")
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            conn.close()
+
+
+def update_job_status(job_id: str, status: str, progress: float, result: str = None, error: str = None):
+    conn = None
+    try:
+        conn = get_db()
+        conn.execute(
+            "UPDATE background_jobs SET status = ?, progress = ?, result = ?, error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (status, float(progress), result, error, job_id),
+        )
+        conn.commit()
+        logger.info(f"Background job updated: {job_id} -> {status} ({progress*100}%)")
+    except Exception as e:
+        logger.error(f"Failed to update background job: {e}")
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_job_status(job_id: str):
+    try:
+        conn = get_db()
+        row = conn.execute("SELECT * FROM background_jobs WHERE id = ?", (job_id,)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"Failed to get background job: {e}")
+        raise

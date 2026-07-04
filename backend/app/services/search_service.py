@@ -43,6 +43,56 @@ def _normalize_strategy(strategy: str) -> str:
     return strategy.replace("_", "-")
 
 
+def classify_query_strategy(query: str) -> str:
+    query_lower = query.lower()
+    if "compare" in query_lower or "versus" in query_lower or "vs" in query_lower or "difference" in query_lower:
+        return "hybrid-rerank"
+    if "why" in query_lower or "how" in query_lower or "explain" in query_lower:
+        return "decomposition"
+    if "concept" in query_lower or "define" in query_lower or "what is" in query_lower:
+        return "hyde"
+    return "hybrid"
+
+
+def classify_query_strategy_llm(query: str) -> str:
+    try:
+        prompt = ChatPromptTemplate.from_template(
+            "You are a query router for a RAG system. Classify the user query into one of these strategies:\n"
+            "1. 'hybrid-rerank' (for complex, technical, or comparison questions)\n"
+            "2. 'decomposition' (for multi-part or multi-step questions)\n"
+            "3. 'hyde' (for definitions, concepts, or broad background questions)\n"
+            "4. 'hybrid' (for simple search or fact lookup)\n\n"
+            "Query: {query}\n\n"
+            "Return ONLY the exact strategy name as a lowercase string (e.g. 'hybrid-rerank')."
+        )
+        chain = prompt | get_llm_chain() | StrOutputParser()
+        result = chain.invoke({"query": query}).strip().lower()
+        if result in ("hybrid-rerank", "decomposition", "hyde", "hybrid"):
+            return result
+    except Exception as e:
+        logger.error(f"LLM strategy routing failed: {e}")
+    return classify_query_strategy(query)
+
+
+def compress_document_chunk(query: str, doc_content: str) -> str:
+    try:
+        from app.llm import get_llm_chain
+        prompt = ChatPromptTemplate.from_template(
+            "You are a contextual compressor. Extract ONLY the sentences or fragments from the context that are directly relevant to answering the query. Do not rewrite, synthesize, or explain. Keep the extracted text verbatim.\n"
+            "If no part of the context is relevant, return an empty string.\n\n"
+            "Query: {query}\n"
+            "Context: {context}\n\n"
+            "Extracted relevant text:"
+        )
+        chain = prompt | get_llm_chain() | StrOutputParser()
+        result = chain.invoke({"query": query, "context": doc_content}).strip()
+        if result:
+            return result
+    except Exception as e:
+        logger.error(f"Contextual compression failed for chunk: {e}")
+    return doc_content
+
+
 def search_documents(
     query: str,
     k: int = 5,
@@ -51,6 +101,7 @@ def search_documents(
     rerank: bool = False,
     rerank_top_k: int = 3,
     vectorstore = None,
+    compress: bool = False,
 ) -> dict:
     strategy = _normalize_strategy(strategy)
     trace = {
@@ -60,6 +111,12 @@ def search_documents(
         "retrieved_chunks": [],
         "reranked_chunks": [],
     }
+
+    if strategy == "auto":
+        actual_strategy = classify_query_strategy_llm(query)
+        logger.info(f"Auto-routed strategy to: {actual_strategy}")
+        trace["auto_selected_strategy"] = actual_strategy
+        strategy = actual_strategy
 
     docs = []
 
@@ -152,7 +209,50 @@ def search_documents(
         ]
         docs = reranked
 
+    # Contextual Compression
+    if compress and docs:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            compressed_contents = list(executor.map(lambda d: compress_document_chunk(query, d.page_content), docs))
+        
+        compressed_docs = []
+        for doc, comp_content in zip(docs, compressed_contents):
+            if comp_content.strip():
+                # Update content with compressed content
+                from langchain_core.documents import Document as LCDocument
+                new_doc = LCDocument(page_content=comp_content.strip(), metadata=doc.metadata)
+                compressed_docs.append(new_doc)
+            else:
+                # If compression removed it completely, fall back to original chunk rather than skipping completely
+                compressed_docs.append(doc)
+        
+        if compressed_docs:
+            docs = compressed_docs
+        
+        trace["compressed_chunks"] = [
+            {
+                "content": doc.page_content,
+                "metadata": doc.metadata,
+            }
+            for doc in docs
+        ]
+
     return {
         "documents": docs,
         "trace": trace,
     }
+
+
+from langchain_core.runnables import RunnableLambda
+search_service = RunnableLambda(
+    lambda x: search_documents(
+        query=x["query"],
+        k=x.get("k", 5),
+        strategy=x.get("strategy", "vector"),
+        filters=x.get("filters"),
+        rerank=x.get("rerank", False),
+        rerank_top_k=x.get("rerank_top_k", 3),
+        vectorstore=x.get("vectorstore"),
+        compress=x.get("compress", False)
+    )
+)

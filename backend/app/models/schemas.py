@@ -15,6 +15,8 @@ class QueryRequest(BaseModel):
     rerank: bool = False
     rerank_top_k: int = 3
     filters: dict = None
+    embedding_model: str = "huggingface"
+    compress: bool = False
 
 
 class QueryResponse(BaseModel):

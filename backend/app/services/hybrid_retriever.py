@@ -28,15 +28,16 @@ class HybridRetriever:
         self.bm25_retriever = bm25_retriever
         self.weights = weights or [0.5, 0.5]
 
-    def _get_vector_results(self, query: str, k: int) -> list[Document]:
+    def _get_vector_results(self, query: str, k: int, filters: dict = None) -> list[Document]:
         if self.vectorstore is None:
             return []
-        return self.vectorstore.similarity_search(query, k=k)
+        from app.services.retrieval import retrieval_service
+        return retrieval_service.invoke({"query": query, "k": k, "filters": filters, "vectorstore": self.vectorstore})
 
-    def _get_bm25_results(self, query: str, k: int) -> list[Document]:
+    def _get_bm25_results(self, query: str, k: int, filters: dict = None) -> list[Document]:
         if self.bm25_retriever is None or self.bm25_retriever.bm25 is None:
             return []
-        return self.bm25_retriever.search(query, k=k)
+        return self.bm25_retriever.search(query, k=k, filters=filters)
 
     def _weighted_rrf(
         self, result_lists: list[list[Document]], weights: list[float], k: int = 60
@@ -65,17 +66,17 @@ class HybridRetriever:
 
         return result
 
-    def search(self, query: str, k: int = 5) -> list[Document]:
+    def search(self, query: str, k: int = 5, filters: dict = None) -> list[Document]:
         """Execute hybrid search with weighted RRF fusion."""
         result_lists = []
         active_weights = []
 
-        vector_results = self._get_vector_results(query, k)
+        vector_results = self._get_vector_results(query, k, filters)
         if vector_results:
             result_lists.append(vector_results)
             active_weights.append(self.weights[0] if len(self.weights) > 0 else 0.5)
 
-        bm25_results = self._get_bm25_results(query, k)
+        bm25_results = self._get_bm25_results(query, k, filters)
         if bm25_results:
             result_lists.append(bm25_results)
             active_weights.append(self.weights[1] if len(self.weights) > 1 else 0.5)
@@ -116,9 +117,9 @@ def build_hybrid_retriever(vectorstore, documents: list[Document] = None, weight
     return _hybrid_instance
 
 
-async def hybrid_search_async(query: str, k: int = 5) -> list[Document]:
+async def hybrid_search_async(query: str, k: int = 5, filters: dict = None) -> list[Document]:
     retriever = get_hybrid_retriever()
-    return await asyncio.to_thread(retriever.search, query, k)
+    return await asyncio.to_thread(retriever.search, query, k, filters)
 
 
-hybrid_retrieval_chain = RunnableLambda(lambda x: hybrid_search_async(x["query"], x.get("k", 5)))
+hybrid_retrieval_chain = RunnableLambda(lambda x: hybrid_search_async(x["query"], x.get("k", 5), x.get("filters")))

@@ -103,6 +103,6 @@ def get_llm_chain():
     return llm_manager.get_llm_chain()
 
 
-async def invoke_with_semaphore(chain, input_data: dict) -> str:
+async def invoke_with_semaphore(chain, input_data: dict, config: dict = None) -> str:
     async with _semaphore:
-        return await chain.ainvoke(input_data)
+        return await chain.ainvoke(input_data, config=config)

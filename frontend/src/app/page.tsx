@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Search, Sparkles } from "lucide-react";
 import QueryPanel from "@/components/QueryPanel";
 import AnswerDisplay from "@/components/AnswerDisplay";
@@ -27,7 +27,7 @@ export default function QueryPage() {
   const [showFilters, setShowFilters] = useState(false);
 
   // Metadata filters
-  const [filterSource, setFilterSource] = useState("");
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [filterPageStart, setFilterPageStart] = useState<number | "">("");
   const [filterPageEnd, setFilterPageEnd] = useState<number | "">("");
   const [filterSection, setFilterSection] = useState("");
@@ -37,14 +37,23 @@ export default function QueryPage() {
   const [rerank, setRerank] = useState(false);
 
   const [documents, setDocuments] = useState<Doc[]>([]);
+  
+  // Abort controller reference for task cancellation
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     fetch(`${API}/documents`).then(r => r.json()).then(d => setDocuments(d.documents || [])).catch(() => {});
+    
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []);
 
   const buildFilters = () => {
-    const f: Record<string, string | number> = {};
-    if (filterSource) f.source = filterSource;
+    const f: Record<string, any> = {};
+    if (selectedSources.length > 0) f.source = selectedSources;
     if (filterPageStart !== "") f.page_start = filterPageStart;
     if (filterPageEnd !== "") f.page_end = filterPageEnd;
     if (filterSection) f.section = filterSection;
@@ -54,7 +63,16 @@ export default function QueryPage() {
   };
 
   const handleAsk = async () => {
-    if (!question.trim() || isLoading) return;
+    if (!question.trim()) return;
+
+    // Abort any ongoing query
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsLoading(true);
     setAnswer("");
     setTrace(null);
@@ -63,14 +81,22 @@ export default function QueryPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, strategy, k, rerank, filters: buildFilters() }),
+        signal: controller.signal,
       });
       const data = await res.json();
       setAnswer(data.answer || "");
       setTrace(data.trace || null);
-    } catch (e) {
-      setAnswer("Error: Failed to query backend.");
+    } catch (e: any) {
+      if (e.name === "AbortError") {
+        console.log("Ask request aborted.");
+      } else {
+        setAnswer("Error: Failed to query backend.");
+      }
     } finally {
-      setIsLoading(false);
+      if (abortControllerRef.current === controller) {
+        setIsLoading(false);
+        abortControllerRef.current = null;
+      }
     }
   };
 
@@ -99,7 +125,7 @@ export default function QueryPage() {
       {showFilters && (
         <MetadataFilters
           documents={documents}
-          filterSource={filterSource} setFilterSource={setFilterSource}
+          selectedSources={selectedSources} setSelectedSources={setSelectedSources}
           filterPageStart={filterPageStart} setFilterPageStart={setFilterPageStart}
           filterPageEnd={filterPageEnd} setFilterPageEnd={setFilterPageEnd}
           filterSection={filterSection} setFilterSection={setFilterSection}

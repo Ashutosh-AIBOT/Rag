@@ -42,8 +42,20 @@ def _search(input_data: dict) -> list[Document]:
                         conditions.append({"page": {"$lte": int(value)}})
                     except ValueError:
                         pass
-                elif key in ["source", "strategy", "section", "doc_id", "tags"]:
-                    conditions.append({key: str(value)})
+                elif key in ["source", "strategy", "section", "doc_id", "tags", "upload_date", "date"]:
+                    if isinstance(value, list):
+                        if len(value) == 1:
+                            conditions.append({key: str(value[0])})
+                        elif len(value) > 1:
+                            conditions.append({key: {"$in": [str(v) for v in value]}})
+                    elif isinstance(value, str) and "," in value:
+                        parts = [v.strip() for v in value.split(",") if v.strip()]
+                        if len(parts) == 1:
+                            conditions.append({key: parts[0]})
+                        elif len(parts) > 1:
+                            conditions.append({key: {"$in": parts}})
+                    else:
+                        conditions.append({key: str(value)})
 
         if len(conditions) > 1:
             chroma_filter = {"$and": conditions}
@@ -58,6 +70,21 @@ def _search(input_data: dict) -> list[Document]:
     
     swapped_docs = []
     for doc in docs:
+        parent_chunk_id = doc.metadata.get("parent_chunk_id")
+        if parent_chunk_id:
+            try:
+                parent_data = vs._collection.get(ids=[parent_chunk_id])
+                if parent_data and parent_data.get("documents"):
+                    from langchain_core.documents import Document as LCDocument
+                    swapped_doc = LCDocument(
+                        page_content=parent_data["documents"][0],
+                        metadata=parent_data["metadatas"][0] if parent_data.get("metadatas") else doc.metadata
+                    )
+                    swapped_docs.append(swapped_doc)
+                    continue
+            except Exception as ex:
+                logger.error(f"Failed to fetch parent chunk {parent_chunk_id}: {ex}")
+
         strategy = doc.metadata.get("strategy")
         parent_id = doc.metadata.get("parent_id")
         if strategy == "parent-child" and parent_id:
