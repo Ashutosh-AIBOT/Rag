@@ -1,78 +1,102 @@
-from typing import AsyncIterator
-
-from langchain_core.messages import BaseMessage
-
-from app.llm.base import BaseLLMProvider
-from app.llm.gemini import GeminiProvider
-from app.llm.groq import GroqProvider
-from app.llm.nvidia import NvidiaProvider
-from app.llm.fallback import FallbackHandler
-from app.llm.models import ProviderName
+import asyncio
+import os
+from typing import Any
+from langchain_core.runnables import RunnableWithFallbacks
+from langchain_core.language_models.llms import LLM
+from app.config import settings
 from app.core.logging import get_logger
+from app.llm.base import BaseLLMProvider
 
 logger = get_logger(__name__)
+_semaphore = asyncio.Semaphore(5)
 
 
 class LLMManager:
-    def __init__(self):
-        self._providers: dict[ProviderName, BaseLLMProvider] = {}
-        self._fallback: FallbackHandler | None = None
-        self._initialized = False
+    _instance = None
+    _initialized = False
 
-    def initialize(self, primary: ProviderName = ProviderName.NVIDIA) -> None:
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def initialize(self):
         if self._initialized:
             return
-
-        self._providers[ProviderName.GEMINI] = GeminiProvider()
-        self._providers[ProviderName.GROQ] = GroqProvider()
-        self._providers[ProviderName.NVIDIA] = NvidiaProvider()
-
-        self._fallback = FallbackHandler(self._providers)
-        self._fallback.set_active(primary)
+        logger.info("Initializing LLMManager...")
         self._initialized = True
-        logger.info(f"LLMManager initialized, primary: {primary.value}")
+        self._loaded_llms = {}
 
-    def _ensure_initialized(self) -> None:
-        if not self._initialized:
-            raise RuntimeError("LLMManager not initialized")
+    def load_all_models(self):
+        self._load_llm("nvidia")
+        self._load_llm("groq")
+        self._load_llm("gemini")
 
-    def get_active_provider(self) -> BaseLLMProvider:
-        self._ensure_initialized()
-        provider = self._fallback.get_provider(self._fallback.active_provider)
-        if provider is None:
-            raise RuntimeError("No active LLM provider available")
-        return provider
+    def _load_llm(self, provider_name: str):
+        try:
+            if provider_name == "nvidia":
+                llm = self._load_nvidia_llm()
+            elif provider_name == "groq":
+                llm = self._load_groq_llm()
+            elif provider_name == "gemini":
+                llm = self._load_gemini_llm()
+            else:
+                logger.warning(f"Unknown provider: {provider_name}")
+                return
 
-    async def generate(self, messages: list[BaseMessage], **kwargs) -> str:
-        self._ensure_initialized()
+            self._loaded_llms[provider_name] = llm
+            logger.info(f"{provider_name} LLM loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load {provider_name}: {e}")
 
-        async def _generate(provider: BaseLLMProvider, msgs, opts):
-            return await provider.generate(msgs, **opts)
+    def _load_nvidia_llm(self) -> LLM:
+        provider = BaseLLMProvider(
+            api_key=settings.NVIDIA_API_KEY,
+            base_url="https://integrate.api.nvidia.com/v1",
+            model="meta/llama-3.1-70b-instruct",
+        )
+        return provider.get_llm()
 
-        return await self._fallback.execute_with_fallback(_generate, messages, kwargs)
+    def _load_groq_llm(self) -> LLM:
+        provider = BaseLLMProvider(
+            api_key=settings.GROQ_API_KEY,
+            base_url="https://api.groq.com/openai/v1",
+            model="llama-3.3-70b-versatile",
+        )
+        return provider.get_llm()
 
-    async def stream(self, messages: list[BaseMessage], **kwargs) -> AsyncIterator[str]:
-        self._ensure_initialized()
-        provider = self.get_active_provider()
-        async for chunk in provider.stream(messages, **kwargs):
-            yield chunk
+    def _load_gemini_llm(self) -> LLM:
+        provider = BaseLLMProvider(
+            api_key=settings.GOOGLE_API_KEY,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+            model="gemini-2.0-flash",
+        )
+        return provider.get_llm()
 
-    def load_all_models(self) -> None:
-        self._ensure_initialized()
-        for name, provider in self._providers.items():
-            try:
-                provider.get_model()
-                logger.info(f"Model loaded: {name.value}")
-            except Exception as e:
-                logger.error(f"Failed to load model {name.value}: {e}")
+    def get_llm_chain(self) -> RunnableWithFallbacks:
+        primary = self._loaded_llms.get("nvidia")
+        fallbacks = [
+            llm for name, llm in self._loaded_llms.items() if name != "nvidia"
+        ]
+        if not primary:
+            raise RuntimeError("No primary LLM loaded (nvidia)")
+        return primary.with_fallbacks(fallbacks)
 
-    @property
-    def status(self) -> dict:
-        self._ensure_initialized()
-        return {
-            "active_provider": self._fallback.active_provider.value,
-            "loaded_providers": [name.value for name, p in self._providers.items() if p.is_loaded],
-        }
+    def get_llm(self) -> Any:
+        return self.get_llm_chain()
 
 
 llm_manager = LLMManager()
+
+
+def get_llm():
+    return llm_manager.get_llm()
+
+
+def get_llm_chain():
+    return llm_manager.get_llm_chain()
+
+
+async def invoke_with_semaphore(chain, input_data: dict) -> str:
+    async with _semaphore:
+        return await chain.ainvoke(input_data)

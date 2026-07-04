@@ -1,5 +1,4 @@
 from enum import Enum
-
 from pydantic import BaseModel
 
 
@@ -10,6 +9,8 @@ class ProviderName(str, Enum):
 
 
 class LLMConfig(BaseModel):
+    model_config = {"protected_namespaces": ()}
+    
     provider: ProviderName
     model_name: str
     api_key_env: str
