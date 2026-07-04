@@ -8,19 +8,14 @@ class DocumentUploadResponse(BaseModel):
     message: str
 
 
-class DocumentResponse(BaseModel):
-    id: str
-    filename: str
-    file_type: str
-    file_size: int
-    total_pages: int
-    upload_date: str
-    tags: str
-    chunk_count: int
+class QueryRequest(BaseModel):
+    question: str
+    k: int = 5
 
 
-class DocumentListResponse(BaseModel):
-    documents: list[DocumentResponse]
+class QueryResponse(BaseModel):
+    answer: str
+    sources: list[str]
 
 
 class IngestionResult(BaseModel):
@@ -32,3 +27,19 @@ class IngestionResult(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
+
+
+class DocumentResponse(BaseModel):
+    id: str
+    filename: str
+    file_type: str
+    file_size: int
+    total_pages: int
+    upload_date: str
+    tags: str
+    chunk_count: int
+    status: str
+
+
+class DocumentListResponse(BaseModel):
+    documents: list[DocumentResponse]
