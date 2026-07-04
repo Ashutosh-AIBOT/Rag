@@ -12,6 +12,7 @@ from app.database.database import (
     update_document_status, get_document_by_filename
 )
 from app.models.schemas import DocumentUploadResponse, DocumentListResponse, DocumentResponse
+from app.services.bm25_retriever import get_bm25_retriever
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -171,6 +172,7 @@ async def remove_document(doc_id: str):
             raise HTTPException(status_code=404, detail="Document not found")
 
         delete_document(doc_id)
+        get_bm25_retriever().delete_document(doc_id)
 
         file_path = UPLOAD_DIR / f"{doc_id}_{document['filename']}"
         if file_path.exists():
@@ -194,6 +196,7 @@ async def remove_all_documents():
             file_path = UPLOAD_DIR / f"{doc['id']}_{doc['filename']}"
             if file_path.exists():
                 file_path.unlink()
+        get_bm25_retriever().clear()
         logger.info(f"Deleted {len(documents)} documents")
         return {"message": f"Deleted {len(documents)} documents"}
     except Exception as e:

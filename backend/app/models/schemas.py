@@ -11,11 +11,17 @@ class DocumentUploadResponse(BaseModel):
 class QueryRequest(BaseModel):
     question: str
     k: int = 5
+    strategy: str = "vector"
+    rerank: bool = False
+    rerank_top_k: int = 3
+    filters: dict = None
 
 
 class QueryResponse(BaseModel):
+    query_id: str
     answer: str
     sources: list[str]
+    trace: dict = None
 
 
 class IngestionResult(BaseModel):

@@ -70,6 +70,15 @@ def _store(data: dict) -> IngestionResult:
     update_document_pages(doc_id, data.get("total_pages", 0))
     update_document_status(doc_id, "completed")
 
+    try:
+        from app.services.bm25_retriever import get_bm25_retriever
+        bm25_retriever = get_bm25_retriever()
+        current_docs = list(bm25_retriever.documents)
+        current_docs.extend(all_chunks)
+        bm25_retriever._build_index(current_docs)
+    except Exception as e:
+        logger.error(f"Failed to update BM25 index during ingestion: {e}")
+
     logger.info(f"Ingestion complete: {filename} - {len(all_chunks)} chunks")
     return IngestionResult(
         doc_id=doc_id,

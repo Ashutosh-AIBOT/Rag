@@ -1,3 +1,5 @@
+import pickle
+from pathlib import Path
 from rank_bm25 import BM25Okapi
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableLambda
@@ -5,6 +7,8 @@ from app.core.logging import get_logger
 import asyncio
 
 logger = get_logger(__name__)
+
+INDEX_FILE = Path("uploads/bm25_index.pkl")
 
 
 class BM25Retriever:
@@ -20,6 +24,7 @@ class BM25Retriever:
         self.tokenized_corpus = [doc.page_content.split() for doc in documents]
         self.bm25 = BM25Okapi(self.tokenized_corpus)
         logger.info(f"BM25 index built with {len(documents)} documents")
+        self.save()
 
     def search(self, query: str, k: int = 5) -> list[Document]:
         if not self.bm25:
@@ -41,6 +46,46 @@ class BM25Retriever:
         logger.info(f"BM25 search returned {len(results)} results")
         return results
 
+    def save(self):
+        try:
+            INDEX_FILE.parent.mkdir(exist_ok=True)
+            with open(INDEX_FILE, "wb") as f:
+                pickle.dump((self.documents, self.tokenized_corpus), f)
+            logger.info("BM25 index saved to file")
+        except Exception as e:
+            logger.error(f"Failed to save BM25 index: {e}")
+
+    def load(self) -> bool:
+        try:
+            if INDEX_FILE.exists():
+                with open(INDEX_FILE, "rb") as f:
+                    self.documents, self.tokenized_corpus = pickle.load(f)
+                self.bm25 = BM25Okapi(self.tokenized_corpus)
+                logger.info(f"BM25 index loaded from file with {len(self.documents)} documents")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to load BM25 index: {e}")
+        return False
+
+    def delete_document(self, doc_id: str):
+        if not self.bm25:
+            return
+        new_docs = [doc for doc in self.documents if doc.metadata.get("doc_id") != doc_id]
+        if len(new_docs) == len(self.documents):
+            return
+        if not new_docs:
+            self.clear()
+        else:
+            self._build_index(new_docs)
+
+    def clear(self):
+        self.documents = []
+        self.tokenized_corpus = []
+        self.bm25 = None
+        if INDEX_FILE.exists():
+            INDEX_FILE.unlink()
+        logger.info("BM25 index cleared")
+
 
 _bm25_instance = None
 
@@ -49,6 +94,7 @@ def get_bm25_retriever():
     global _bm25_instance
     if _bm25_instance is None:
         _bm25_instance = BM25Retriever()
+        _bm25_instance.load()
     return _bm25_instance
 
 

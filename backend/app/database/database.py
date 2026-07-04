@@ -275,6 +275,17 @@ def get_pipeline_trace(trace_id):
         raise
 
 
+def get_pipeline_trace_by_query_id(query_id):
+    try:
+        conn = get_db()
+        row = conn.execute("SELECT * FROM pipeline_traces WHERE query_id = ?", (query_id,)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"Pipeline trace get by query_id failed: {e}")
+        raise
+
+
 def insert_eval_result(eval_id, query_id, faithfulness, relevancy, precision, recall):
     conn = None
     try:

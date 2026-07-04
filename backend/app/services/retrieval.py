@@ -17,10 +17,44 @@ def _search(input_data: dict) -> list[Document]:
     query = input_data["query"]
     k = input_data.get("k", 5)
     vs = input_data.get("vectorstore", _vectorstore)
+    filters = input_data.get("filters")
     if vs is None:
         logger.error("Vectorstore not available")
         return []
-    docs = vs.similarity_search(query, k=k)
+    
+    chroma_filter = None
+    if filters:
+        conditions = []
+        for key, value in filters.items():
+            if value is not None and value != "":
+                if key == "page":
+                    try:
+                        conditions.append({"page": int(value)})
+                    except ValueError:
+                        pass
+                elif key == "page_start":
+                    try:
+                        conditions.append({"page": {"$gte": int(value)}})
+                    except ValueError:
+                        pass
+                elif key == "page_end":
+                    try:
+                        conditions.append({"page": {"$lte": int(value)}})
+                    except ValueError:
+                        pass
+                elif key in ["source", "strategy", "section", "doc_id", "tags"]:
+                    conditions.append({key: str(value)})
+
+        if len(conditions) > 1:
+            chroma_filter = {"$and": conditions}
+        elif len(conditions) == 1:
+            chroma_filter = conditions[0]
+
+    if chroma_filter:
+        logger.info(f"Retrieving with filter: {chroma_filter}")
+        docs = vs.similarity_search(query, k=k, filter=chroma_filter)
+    else:
+        docs = vs.similarity_search(query, k=k)
     
     swapped_docs = []
     for doc in docs:

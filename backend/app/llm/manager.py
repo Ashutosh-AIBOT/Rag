@@ -74,6 +74,9 @@ class LLMManager:
         return provider.get_llm()
 
     def get_llm_chain(self) -> RunnableWithFallbacks:
+        if not self._initialized:
+            self.initialize()
+            self.load_all_models()
         primary = self._loaded_llms.get("nvidia")
         fallbacks = [
             llm for name, llm in self._loaded_llms.items() if name != "nvidia"
