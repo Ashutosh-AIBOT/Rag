@@ -315,3 +315,58 @@ def list_eval_results():
     except Exception as e:
         logger.error(f"Eval results list failed: {e}")
         raise
+
+
+def get_retrieval_stats():
+    try:
+        conn = get_db()
+        total_queries = conn.execute("SELECT COUNT(*) FROM query_history").fetchone()[0]
+        avg_latency = conn.execute("SELECT AVG(latency_ms) FROM query_history").fetchone()[0] or 0.0
+        strategies = conn.execute("SELECT strategy, COUNT(*) FROM query_history GROUP BY strategy").fetchall()
+        strategy_counts = {row["strategy"]: row[1] for row in strategies}
+        total_docs = conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+        total_chunks = conn.execute("SELECT SUM(chunk_count) FROM documents").fetchone()[0] or 0
+        
+        traces = conn.execute("SELECT steps FROM pipeline_traces").fetchall()
+        total_input_tokens = 0
+        total_output_tokens = 0
+        for row in traces:
+            try:
+                import json
+                steps = json.loads(row["steps"])
+                q_len = len(steps.get("original_query", ""))
+                c_len = sum(len(c.get("content", "")) for c in steps.get("retrieved_chunks", []))
+                a_len = len(steps.get("answer", ""))
+                total_input_tokens += (q_len + c_len) // 4
+                total_output_tokens += a_len // 4
+            except Exception:
+                pass
+        
+        conn.close()
+        return {
+            "total_queries": total_queries,
+            "avg_latency_ms": round(avg_latency, 2),
+            "strategy_counts": strategy_counts,
+            "total_documents": total_docs,
+            "total_chunks": total_chunks,
+            "estimated_input_tokens": total_input_tokens,
+            "estimated_output_tokens": total_output_tokens,
+            "estimated_total_tokens": total_input_tokens + total_output_tokens,
+        }
+    except Exception as e:
+        logger.error(f"Get stats failed: {e}")
+        raise
+
+
+def list_recent_queries(limit=10):
+    try:
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT * FROM query_history ORDER BY created_at DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+    except Exception as e:
+        logger.error(f"List recent queries failed: {e}")
+        raise

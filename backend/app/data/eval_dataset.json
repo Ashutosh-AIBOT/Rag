@@ -1,77 +1,77 @@
 [
-    {
-        "question": "What is attention mechanism in neural networks?",
-        "reference_answer": "Attention mechanism is a technique that allows neural networks to focus on specific parts of the input when producing output. It computes weighted sums of input representations, where the weights indicate the importance of each input element for the current output.",
-        "strategy": "vector"
-    },
-    {
-        "question": "How does self-attention work?",
-        "reference_answer": "Self-attention computes attention weights between all positions in a sequence. For each position, it creates query, key, and value vectors. The attention score is computed as the dot product of query and key vectors, normalized by sqrt(d_k), then used to compute a weighted sum of value vectors.",
-        "strategy": "vector"
-    },
-    {
-        "question": "What is multi-head attention?",
-        "reference_answer": "Multi-head attention runs multiple attention mechanisms in parallel. Each head learns different aspects of the input relationships. The outputs of all heads are concatenated and linearly projected to produce the final output.",
-        "strategy": "vector"
-    },
-    {
-        "question": "What are the advantages of transformer architecture?",
-        "reference_answer": "Transformers can process all positions in parallel, capturing long-range dependencies efficiently. They use self-attention instead of recurrence, making them faster to train. They also scale well to large datasets and can be pre-trained on massive corpora.",
-        "strategy": "hybrid"
-    },
-    {
-        "question": "How does positional encoding work?",
-        "reference_answer": "Positional encoding adds information about the position of tokens in the sequence. Transformers use sine and cosine functions of different frequencies to generate positional encodings, which are added to the input embeddings to provide sequence order information.",
-        "strategy": "hybrid"
-    },
-    {
-        "question": "What is the difference between encoder and decoder?",
-        "reference_answer": "The encoder processes the input sequence and creates a representation. The decoder generates the output sequence using the encoder's representation and previously generated tokens. In the original transformer, the encoder uses bidirectional attention while the decoder uses masked attention.",
-        "strategy": "vector"
-    },
-    {
-        "question": "What is beam search in transformers?",
-        "reference_answer": "Beam search is a decoding strategy that keeps track of the top-k most probable sequences at each step. It explores multiple possible outputs simultaneously and returns the sequence with the highest overall probability.",
-        "strategy": "vector"
-    },
-    {
-        "question": "How are transformers trained?",
-        "reference_answer": "Transformers are trained using backpropagation with Adam optimizer. They use teacher forcing during training, where the decoder receives the ground truth as input. Loss is computed using cross-entropy between predicted and actual tokens.",
-        "strategy": "hybrid"
-    },
-    {
-        "question": "What is layer normalization?",
-        "reference_answer": "Layer normalization normalizes the inputs across the feature dimension. It stabilizes training by reducing internal covariate shift. In transformers, it's applied after each sub-layer (attention and feed-forward) with residual connections.",
-        "strategy": "vector"
-    },
-    {
-        "question": "What is the feed-forward network in transformers?",
-        "reference_answer": "The feed-forward network is a two-layer neural network applied independently to each position. It typically expands the dimension by 4x, applies ReLU activation, then projects back to the original dimension. It captures non-linear transformations of the attention output.",
-        "strategy": "vector"
-    },
-    {
-        "question": "How does cross-attention differ from self-attention?",
-        "reference_answer": "In cross-attention, queries come from one sequence (decoder) while keys and values come from another (encoder). Self-attention uses the same sequence for queries, keys, and values. Cross-attention allows the decoder to focus on relevant parts of the input.",
-        "strategy": "hybrid"
-    },
-    {
-        "question": "What is masked language modeling?",
-        "reference_answer": "Masked language modeling is a pre-training objective where some tokens are randomly masked and the model predicts them. This teaches the model to understand context from both directions. BERT uses this approach for pre-training.",
-        "strategy": "vector"
-    },
-    {
-        "question": "What is the scaling factor in attention?",
-        "reference_answer": "The scaling factor is sqrt(d_k) where d_k is the dimension of the key vector. It prevents the dot products from growing too large, which would push the softmax into regions with extremely small gradients. This helps maintain stable training.",
-        "strategy": "vector"
-    },
-    {
-        "question": "How do transformers handle variable-length sequences?",
-        "reference_answer": "Transformers use padding and masking to handle variable lengths. Shorter sequences are padded to the maximum length, and attention masks prevent attending to padding tokens. This allows batch processing of sequences with different lengths.",
-        "strategy": "hybrid"
-    },
-    {
-        "question": "What is the advantage of attention over RNNs?",
-        "reference_answer": "Attention mechanisms can capture long-range dependencies without the vanishing gradient problem of RNNs. They process all positions in parallel, enabling faster training. Attention also provides interpretability through attention weights.",
-        "strategy": "vector"
-    }
+  {
+    "question": "What is the primary contribution of the Attention Is All You Need paper?",
+    "reference_answer": "The paper introduces the Transformer, a novel network architecture based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.",
+    "strategy": "vector"
+  },
+  {
+    "question": "Explain the self-attention mechanism.",
+    "reference_answer": "Self-attention, or intra-attention, relates different positions of a single sequence to compute a representation of the sequence.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What are the advantages of the Transformer architecture over RNNs?",
+    "reference_answer": "Transformers allow for significantly more parallelization and require less time to train compared to recurrent networks like LSTM or GRU.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What is multi-head attention?",
+    "reference_answer": "Multi-head attention allows the model to jointly attend to information from different representation subspaces at different positions.",
+    "strategy": "vector"
+  },
+  {
+    "question": "What role do positional encodings play in Transformers?",
+    "reference_answer": "Since the model contains no recurrence or convolution, positional encodings are added to the input embeddings to inject information about the order of tokens in the sequence.",
+    "strategy": "vector"
+  },
+  {
+    "question": "Who are the authors of the Attention Is All You Need paper?",
+    "reference_answer": "The authors are Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, and Illia Polosukhin.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What is the feed-forward network component in the Transformer?",
+    "reference_answer": "Each encoder and decoder layer contains a fully connected feed-forward network consisting of two linear transformations with a ReLU activation in between.",
+    "strategy": "vector"
+  },
+  {
+    "question": "What datasets were used for machine translation in the paper?",
+    "reference_answer": "The paper evaluated the model on the WMT 2014 English-to-German and WMT 2014 English-to-French translation datasets.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "How does the Transformer handle seq-to-seq tasks without recurrence?",
+    "reference_answer": "By using stacked self-attention and point-wise fully connected layers in both the encoder and decoder.",
+    "strategy": "vector"
+  },
+  {
+    "question": "What is the complexity per layer for self-attention?",
+    "reference_answer": "The computational complexity per layer is O(n^2 * d), where n is the sequence length and d is the representation dimension.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "Explain the scaled dot-product attention formula.",
+    "reference_answer": "Attention(Q, K, V) = softmax( (Q * K^T) / sqrt(d_k) ) * V, where Q, K, and V are queries, keys, and values, and d_k is the dimension of the keys.",
+    "strategy": "vector"
+  },
+  {
+    "question": "What optimization algorithm was used to train the Transformer?",
+    "reference_answer": "The models were trained using the Adam optimizer with a custom learning rate schedule that increases linearly during warmup and decreases proportionally to the inverse square root of the step number.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What was the BLEU score achieved on the English-to-German translation task?",
+    "reference_answer": "The big Transformer model achieved a BLEU score of 28.4 on the WMT 2014 English-to-German task, establishing a new state of the art.",
+    "strategy": "hybrid"
+  },
+  {
+    "question": "What model size variants (base vs big) were compared in the paper?",
+    "reference_answer": "The base model used d_model=512, d_ff=2048, and 8 attention heads. The big model used d_model=1024, d_ff=4096, and 16 attention heads.",
+    "strategy": "vector"
+  },
+  {
+    "question": "Why is self-attention faster to train than recurrent neural networks?",
+    "reference_answer": "Recurrent operations process tokens sequentially (O(n) sequential operations), whereas self-attention connects all positions with a constant number of sequentially executed operations (O(1) sequential operations), allowing full parallelization.",
+    "strategy": "hybrid"
+  }
 ]

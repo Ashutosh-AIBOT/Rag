@@ -11,6 +11,7 @@ from app.database.database import (
     insert_pipeline_trace,
     get_pipeline_trace_by_query_id,
     get_query_history,
+    list_recent_queries,
 )
 import asyncio
 import time
@@ -175,6 +176,16 @@ async def compare_strategies(request: CompareRequest, req: Request):
         )
     except Exception as e:
         logger.error(f"Compare failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/recent")
+async def get_recent_queries(limit: int = 10):
+    try:
+        queries = list_recent_queries(limit)
+        return {"queries": queries}
+    except Exception as e:
+        logger.error(f"Get recent queries failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -116,6 +116,22 @@ async def evaluate_batch(request: BatchEvalRequest, req: Request):
         raise
 
 
+@router.get("/dataset")
+async def get_default_dataset():
+    try:
+        import json
+        from pathlib import Path
+        file_path = Path(__file__).parent.parent / "data" / "eval_dataset.json"
+        if not file_path.exists():
+            return []
+        with open(file_path, "r") as f:
+            data = json.load(f)
+        return data
+    except Exception as e:
+        logger.error(f"Failed to load dataset: {e}")
+        return []
+
+
 @router.get("/results")
 async def get_eval_results():
     try:
