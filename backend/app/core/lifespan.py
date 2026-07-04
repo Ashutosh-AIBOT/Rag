@@ -10,20 +10,18 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("[stage00 | lifespan | 004-A] OK: Startup starting...")
+    logger.info("Startup starting...")
     init_sqlite_wal()
 
     if not check_sqlite_health():
         raise RuntimeError("SQLite health check failed")
 
-    # Load embedding model
     embedding_model = load_embedding_model()
-    app.state.embedding_model = embedding_model
+    app.state.embeddings = embedding_model
 
-    # Initialize ChromaDB
     vectorstore = initialize_chroma(embedding_model)
     app.state.vectorstore = vectorstore
 
-    print("[stage00 | lifespan | 004-B] OK: App ready")
+    logger.info("App ready")
     yield
-    print("[stage00 | lifespan | 004-C] OK: App stopped")
+    logger.info("App stopped")

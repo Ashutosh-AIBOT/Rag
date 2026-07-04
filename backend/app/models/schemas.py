@@ -17,6 +17,7 @@ class DocumentResponse(BaseModel):
     upload_date: str
     tags: str
     chunk_count: int
+    status: str
 
 
 class DocumentListResponse(BaseModel):

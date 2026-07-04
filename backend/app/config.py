@@ -1,8 +1,11 @@
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 load_dotenv()
-print("[stage00 | config | 002-A] OK: .env loaded")
+logger.info(".env loaded")
 
 
 class Settings(BaseSettings):
@@ -20,7 +23,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-print("[stage00 | config | 002-B] OK: Settings loaded")
+logger.info("Settings loaded")
 
 keys = [
     ("GOOGLE_API_KEY", settings.GOOGLE_API_KEY),
@@ -34,4 +37,4 @@ keys = [
 for letter, (name, val) in zip("CDEFGHI", keys):
     status = "OK" if val else "WARN"
     msg = "present" if val else "missing"
-    print(f"[stage00 | config | 002-{letter}] {status}: {name} {msg}")
+    logger.info(f"{name}: {msg}")

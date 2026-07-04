@@ -6,6 +6,17 @@ By building a basic functional pipeline first (Stage 1) and progressively layer-
 
 ---
 
+## Concurrency Target
+
+| Phase | Stages | Target Users | Infrastructure |
+|-------|--------|--------------|----------------|
+| **Assignment** | Stage 0-7 | 5-10 concurrent | SQLite + ChromaDB + Local |
+| **Production** | Post-assignment | 1000+ concurrent | PostgreSQL + Redis + Cloud |
+
+**Note:** Stages 0-7 are designed for 5-10 concurrent users (assignment/demo scope). After assignment completion, scaling modifications will be applied for 1000+ users. See `Must-Remember/03.Scaling-Guide.md` for production scaling requirements.
+
+---
+
 ## Staging Overview
 
 ```mermaid
@@ -262,3 +273,35 @@ graph TD
 1.  **A/B Comparison Test:** Run a query in `/compare` comparing "Basic Vector" vs. "Hybrid + Rerank". Assert that answers and retrieved chunk rankings are shown side-by-side, and that overlapping chunks are highlighted.
 2.  **Dashboard Chart Test:** Go to `/evaluate`. Verify that charts populate and display the relative score of each strategy. Assert that clicking a failed query successfully opens its full pipeline trace logs.
 3.  **Load Test & Docker verification:** Run `docker-compose up`. Simulate 5-10 concurrent queries. Verify that all queries succeed without SQLite lock errors and that BM25 queries return synchronized results across all 4 container workers.
+
+---
+
+## Future Improvements (Post-Assignment)
+
+### Production Scaling (1000+ Users)
+
+| Tool | Use Case |
+|------|----------|
+| Celery + Redis | Distributed task queue |
+| Multiple workers | Parallel processing |
+| PostgreSQL | Replace SQLite for concurrent writes |
+| Redis Cache | Cache frequent queries |
+
+### Current Issues to Fix
+
+| Issue | Solution | Priority |
+|-------|----------|----------|
+| Duplicate document insert | Remove save from upload, let background task handle | High |
+| Background task silent failure | Add status field (processing/completed/failed) | Medium |
+| No chunk_count update | Add WebSocket or polling | Medium |
+| No streaming in chat | Use `/query/stream` endpoint | Medium |
+| Connection timeout 10s | Change to 30s per assignment | Low |
+| Missing `.env.example` | Create template file | Low |
+
+### Background Worker Improvements
+
+| Current | Better |
+|---------|--------|
+| FastAPI BackgroundTasks | Same process, blocks if heavy |
+| asyncio.to_thread | CPU-intensive tasks |
+| Celery + Redis | Production distributed queue |

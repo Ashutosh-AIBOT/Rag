@@ -18,7 +18,7 @@ def _split(documents: list[Document]) -> list[Document]:
         separators=["\n\n", "\n", ". ", " ", ""],
     )
     chunks = splitter.split_documents(documents)
-    print(f"[stage01 | chunking | 010-A] OK: Split into {len(chunks)} chunks")
+    logger.info(f"Split into {len(chunks)} chunks")
     return chunks
 
 

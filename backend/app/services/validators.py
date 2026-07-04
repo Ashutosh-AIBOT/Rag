@@ -12,26 +12,24 @@ ALLOWED_EXTENSIONS = {".pdf", ".txt", ".docx", ".md"}
 def validate_file_type(filename: str) -> None:
     ext = Path(filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
-        print(f"[stage01 | validators | 008-A] FAIL: Unsupported file type - {ext}")
         raise ValueError(f"Unsupported file type: {ext}. Allowed: {ALLOWED_EXTENSIONS}")
-    print(f"[stage01 | validators | 008-A] OK: File type valid - {ext}")
+    logger.info(f"File type valid: {ext}")
 
 
 def validate_file_size(file_path: str) -> None:
     file_size = Path(file_path).stat().st_size
     if file_size > MAX_FILE_SIZE:
         size_mb = file_size / 1024 / 1024
-        print(f"[stage01 | validators | 008-B] FAIL: File too large - {size_mb:.1f}MB")
         raise ValueError(f"File too large: {size_mb:.1f}MB. Max: 50MB")
-    print(f"[stage01 | validators | 008-B] OK: File size valid - {file_size / 1024:.1f}KB")
+    logger.info(f"File size valid: {file_size / 1024:.1f}KB")
 
 
 def check_duplicate(filename: str) -> str | None:
     existing = get_document_by_filename(filename)
     if existing:
-        print(f"[stage01 | validators | 008-C] WARN: Duplicate detected - {filename}")
+        logger.warning(f"Duplicate detected: {filename}")
         return existing["id"]
-    print(f"[stage01 | validators | 008-C] OK: No duplicate found")
+    logger.info("No duplicate found")
     return None
 
 

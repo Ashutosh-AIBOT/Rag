@@ -27,7 +27,7 @@ def _load(file_path: str) -> list[Document]:
         raise ValueError(f"No loader for: {ext}")
     loader = loader_cls(file_path)
     documents = loader.load()
-    print(f"[stage01 | loaders | 009-A] OK: Loaded {len(documents)} pages")
+    logger.info(f"Loaded {len(documents)} pages")
     return documents
 
 

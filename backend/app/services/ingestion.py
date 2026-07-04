@@ -1,26 +1,28 @@
-import uuid
 from pathlib import Path
 
-from langchain_core.documents import Document
-from langchain_core.runnables import RunnableLambda, RunnablePassthrough
+from langchain_core.runnables import RunnableLambda
 
 from app.core.logging import get_logger
 from app.services.validators import validate_all
 from app.services.loaders import load_chain
 from app.services.chunking import split_chain
-from app.database.database import insert_document, update_document_chunk_count
+from app.database.database import get_document_by_filename, update_document_chunk_count, update_document_status
 from app.vectorstore.chroma import add_documents_to_chroma
 from app.models.schemas import IngestionResult
 
 logger = get_logger(__name__)
 
 
-def _validate(file_path: str) -> dict:
-    existing_id = validate_all(file_path)
-    if existing_id:
-        return {"file_path": file_path, "doc_id": existing_id, "duplicate": True}
-    doc_id = str(uuid.uuid4())
-    return {"file_path": file_path, "doc_id": doc_id, "duplicate": False}
+def _validate(data: dict) -> dict:
+    file_path = data["file_path"]
+    doc_id = data["doc_id"]
+    existing = get_document_by_filename(Path(file_path).name)
+    if existing:
+        data["doc_id"] = existing["id"]
+        data["duplicate"] = True
+        return data
+    data["duplicate"] = False
+    return data
 
 
 def _store(data: dict) -> IngestionResult:
@@ -43,17 +45,10 @@ def _store(data: dict) -> IngestionResult:
 
     add_documents_to_chroma(data["chroma_store"], texts, metadatas, ids)
 
-    file_size = Path(file_path).stat().st_size
-    insert_document(
-        doc_id=doc_id,
-        filename=filename,
-        file_type=Path(file_path).suffix.lower(),
-        file_size=file_size,
-        total_pages=len(chunks),
-    )
     update_document_chunk_count(doc_id, len(chunks))
+    update_document_status(doc_id, "completed")
 
-    print(f"[stage01 | ingestion | 011-A] OK: Ingestion complete - {filename}")
+    logger.info(f"Ingestion complete: {filename}")
     return IngestionResult(doc_id=doc_id, filename=filename, chunks=len(chunks), duplicate=data["duplicate"])
 
 
