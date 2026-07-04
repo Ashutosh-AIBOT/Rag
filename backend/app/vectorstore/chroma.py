@@ -62,3 +62,8 @@ def delete_from_chroma(vectorstore: Chroma, filter_dict: dict) -> None:
     except Exception as e:
         print(f"[stage01 | chroma | 006-F] FAIL: Delete failed - {e}")
         raise
+
+
+def get_vectorstore():
+    from app.core.lifespan import app
+    return app.state.vectorstore

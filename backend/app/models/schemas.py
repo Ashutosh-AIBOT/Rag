@@ -8,6 +8,27 @@ class DocumentUploadResponse(BaseModel):
     message: str
 
 
+class QueryRequest(BaseModel):
+    question: str
+    k: int = 5
+
+
+class QueryResponse(BaseModel):
+    answer: str
+    sources: list[str]
+
+
+class IngestionResult(BaseModel):
+    doc_id: str
+    filename: str
+    chunks: int
+    duplicate: bool
+
+
+class ErrorResponse(BaseModel):
+    detail: str
+
+
 class DocumentResponse(BaseModel):
     id: str
     filename: str

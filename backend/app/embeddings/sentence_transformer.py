@@ -1,5 +1,4 @@
 from langchain_huggingface import HuggingFaceEmbeddings
-
 from app.config import settings
 from app.core.logging import get_logger
 
