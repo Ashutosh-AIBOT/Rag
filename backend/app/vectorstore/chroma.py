@@ -58,7 +58,12 @@ def search_chroma(vectorstore: Chroma, query: str, k: int = 5, filter_dict: dict
 def delete_from_chroma(vectorstore: Chroma, filter_dict: dict) -> None:
     try:
         vectorstore._collection.delete(where=filter_dict)
-        print(f"[stage01 | chroma | 006-F] OK: Deleted chunks with filter {filter_dict}")
+        logger.info(f"Deleted chunks with filter {filter_dict}")
     except Exception as e:
-        print(f"[stage01 | chroma | 006-F] FAIL: Delete failed - {e}")
+        logger.error(f"Delete failed: {e}")
         raise
+
+
+def get_vectorstore():
+    from app.core.lifespan import app
+    return app.state.vectorstore
