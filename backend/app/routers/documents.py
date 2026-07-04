@@ -1,7 +1,7 @@
 import shutil
 import uuid
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks, Request
 from app.config import settings
 from app.services.validators import validate_all
 from app.services.ingestion import get_ingestion_chain
@@ -35,6 +35,7 @@ def process_document(file_path: str, doc_id: str, chroma_store):
 @router.post("/upload", response_model=DocumentUploadResponse, status_code=202)
 async def upload_document(
     file: UploadFile = File(...),
+    tags: str = Form(""),
     background_tasks: BackgroundTasks = None,
     request: Request = None,
 ):
@@ -71,6 +72,7 @@ async def upload_document(
             filename=file.filename,
             file_type=file.content_type,
             file_size=file.size,
+            tags=tags,
         )
 
         chroma_store = request.app.state.vectorstore

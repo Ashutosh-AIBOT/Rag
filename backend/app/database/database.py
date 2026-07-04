@@ -131,6 +131,26 @@ def update_document_chunk_count(doc_id, chunk_count):
             conn.close()
 
 
+def update_document_pages(doc_id, total_pages):
+    if not doc_id:
+        raise ValueError("doc_id is required")
+
+    conn = None
+    try:
+        conn = get_db()
+        conn.execute("UPDATE documents SET total_pages = ? WHERE id = ?", (total_pages, doc_id))
+        conn.commit()
+        logger.info(f"Total pages updated: {total_pages}")
+    except Exception as e:
+        logger.error(f"Pages update failed: {e}")
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            conn.close()
+
+
 def update_document_status(doc_id, status):
     if not doc_id:
         raise ValueError("doc_id is required")

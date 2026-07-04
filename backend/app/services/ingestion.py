@@ -3,7 +3,7 @@ from langchain_core.runnables import RunnableLambda
 from app.core.logging import get_logger
 from app.services.loaders import load_chain
 from app.services.chunking_strategies import all_strategies_chain
-from app.database.database import get_document_by_filename, update_document_chunk_count, update_document_status, insert_parent_document
+from app.database.database import get_document_by_filename, update_document_chunk_count, update_document_status, insert_parent_document, update_document_pages
 from app.vectorstore.chroma import add_documents_to_chroma
 from app.models.schemas import IngestionResult
 
@@ -46,6 +46,7 @@ def _store(data: dict) -> IngestionResult:
             "strategy": chunk.metadata.get("strategy", "recursive"),
             "doc_id": doc_id,
             "section": chunk.metadata.get("section", ""),
+            "parent_id": chunk.metadata.get("parent_id", ""),
         }
         for chunk in all_chunks
     ]
@@ -53,7 +54,11 @@ def _store(data: dict) -> IngestionResult:
 
     add_documents_to_chroma(data["chroma_store"], texts, metadatas, ids)
 
-    for mapping in chunks_result.get("parent_mapping", []):
+    parent_mapping = []
+    if "parent_child" in chunks_result and isinstance(chunks_result["parent_child"], dict):
+        parent_mapping = chunks_result["parent_child"].get("parent_mapping", [])
+
+    for mapping in parent_mapping:
         insert_parent_document(
             parent_id=mapping["parent_id"],
             document_id=doc_id,
@@ -62,6 +67,7 @@ def _store(data: dict) -> IngestionResult:
         )
 
     update_document_chunk_count(doc_id, len(all_chunks))
+    update_document_pages(doc_id, data.get("total_pages", 0))
     update_document_status(doc_id, "completed")
 
     logger.info(f"Ingestion complete: {filename} - {len(all_chunks)} chunks")
@@ -77,6 +83,7 @@ def _load_and_split(data: dict) -> dict:
     documents = load_chain.invoke(data["file_path"])
     chunks = all_strategies_chain.invoke(documents)
     data["chunks"] = chunks
+    data["total_pages"] = len(documents)
     return data
 
 
