@@ -1,4 +1,5 @@
 import sqlite3
+import uuid
 from app.config import settings
 from app.core.logging import get_logger
 
@@ -189,4 +190,97 @@ def get_parent_document(parent_id):
         return None
     except Exception as e:
         logger.error(f"Get failed: {e}")
+        raise
+
+
+def insert_query_history(query_id, question, answer, strategy, latency_ms):
+    conn = None
+    try:
+        conn = get_db()
+        conn.execute(
+            "INSERT INTO query_history VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+            (query_id, question, answer, strategy, latency_ms),
+        )
+        conn.commit()
+        logger.info(f"Query history inserted: {query_id}")
+    except Exception as e:
+        logger.error(f"Query history insert failed: {e}")
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_query_history(query_id):
+    try:
+        conn = get_db()
+        row = conn.execute("SELECT * FROM query_history WHERE id = ?", (query_id,)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"Query history get failed: {e}")
+        raise
+
+
+def insert_pipeline_trace(trace_id, query_id, steps):
+    conn = None
+    try:
+        conn = get_db()
+        conn.execute(
+            "INSERT INTO pipeline_traces VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+            (trace_id, query_id, str(steps)),
+        )
+        conn.commit()
+        logger.info(f"Pipeline trace inserted: {trace_id}")
+    except Exception as e:
+        logger.error(f"Pipeline trace insert failed: {e}")
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_pipeline_trace(trace_id):
+    try:
+        conn = get_db()
+        row = conn.execute("SELECT * FROM pipeline_traces WHERE id = ?", (trace_id,)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"Pipeline trace get failed: {e}")
+        raise
+
+
+def insert_eval_result(eval_id, query_id, faithfulness, relevancy, precision, recall):
+    conn = None
+    try:
+        conn = get_db()
+        conn.execute(
+            "INSERT INTO eval_results VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+            (eval_id, query_id, faithfulness, relevancy, precision, recall),
+        )
+        conn.commit()
+        logger.info(f"Eval result inserted: {eval_id}")
+    except Exception as e:
+        logger.error(f"Eval result insert failed: {e}")
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            conn.close()
+
+
+def list_eval_results():
+    try:
+        conn = get_db()
+        rows = conn.execute("SELECT * FROM eval_results ORDER BY created_at DESC").fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+    except Exception as e:
+        logger.error(f"Eval results list failed: {e}")
         raise
