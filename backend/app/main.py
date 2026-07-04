@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.core.lifespan import lifespan
-from app.routers import documents, query, health
+from app.routers import documents, query, health, hybrid
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -21,3 +21,4 @@ app.add_middleware(
 app.include_router(documents.router, prefix="/api")
 app.include_router(query.router, prefix="/api")
 app.include_router(health.router, prefix="/api")
+app.include_router(hybrid.router, prefix="/api")
