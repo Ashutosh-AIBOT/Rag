@@ -25,6 +25,11 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 def process_document(file_path: str, doc_id: str, chroma_store):
     try:
         update_document_status(doc_id, "processing")
+        if chroma_store is None:
+            from app.embeddings.sentence_transformer import load_embedding_model
+            from app.vectorstore.chroma import initialize_chroma
+            embeddings = load_embedding_model()
+            chroma_store = initialize_chroma(embeddings)
         chain = get_ingestion_chain(chroma_store)
         chain.invoke({"file_path": file_path, "doc_id": doc_id})
         logger.info("Document processed")
@@ -73,13 +78,19 @@ async def upload_document(
             tags=tags,
         )
 
-        chroma_store = request.app.state.vectorstore
-        background_tasks.add_task(process_document, str(file_path), doc_id, chroma_store)
-
-        logger.info(f"Upload accepted: {file.filename}")
-        return DocumentUploadResponse(
-            doc_id=doc_id, filename=file.filename, message="Document uploaded"
-        )
+        try:
+            from app.tasks.ingestion import process_document_task
+            process_document_task.delay(str(file_path), doc_id)
+            logger.info(f"Upload accepted and enqueued via Celery: {file.filename}")
+            return DocumentUploadResponse(
+                doc_id=doc_id, filename=file.filename, message="Document uploaded and enqueued for ingestion"
+            )
+        except Exception:
+            background_tasks.add_task(process_document, str(file_path), doc_id, None)
+            logger.info(f"Upload accepted and processing synchronously: {file.filename}")
+            return DocumentUploadResponse(
+                doc_id=doc_id, filename=file.filename, message="Document uploaded and processing in background"
+            )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

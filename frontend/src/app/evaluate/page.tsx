@@ -107,6 +107,66 @@ export default function EvaluatePage() {
     }
   };
 
+  const startWebSocket = (id: string, signal: AbortSignal) => {
+    let wsUrl = API_URL.replace(/^http/, "ws") + `/jobs/${id}/ws`;
+    // Handle localhost mapping issues if present
+    if (wsUrl.startsWith("ws://api/")) {
+      wsUrl = "ws://localhost:8000/api" + `/jobs/${id}/ws`;
+    }
+    const socket = new WebSocket(wsUrl);
+
+    socket.onmessage = (event) => {
+      if (signal.aborted) {
+        socket.close();
+        return;
+      }
+      try {
+        const data = JSON.parse(event.data);
+        if (data.error) {
+          setError(data.error);
+          setIsRunning(false);
+          setJobId(null);
+          socket.close();
+          return;
+        }
+
+        setJobStatus(data.status);
+        setProgress(data.progress);
+        setProgressText(`Processing batch evaluation... ${Math.round(data.progress * 100)}%`);
+
+        if (data.status === "completed") {
+          setProgressText("Evaluation completed successfully!");
+          setIsRunning(false);
+          setJobId(null);
+          fetchPastResults();
+          socket.close();
+        } else if (data.status === "failed") {
+          setError(data.error || "Evaluation failed.");
+          setIsRunning(false);
+          setJobId(null);
+          socket.close();
+        } else if (data.status === "cancelled") {
+          setError("Evaluation was cancelled.");
+          setIsRunning(false);
+          setJobId(null);
+          socket.close();
+        }
+      } catch (err) {
+        console.error("Failed to parse socket data", err);
+      }
+    };
+
+    socket.onerror = (err) => {
+      console.warn("WebSocket error, falling back to polling", err);
+      socket.close();
+      startPolling(id, signal);
+    };
+
+    signal.addEventListener("abort", () => {
+      socket.close();
+    });
+  };
+
   const startPolling = (id: string, signal: AbortSignal) => {
     const poll = async () => {
       if (signal.aborted) return;
@@ -213,7 +273,7 @@ export default function EvaluatePage() {
       const data = await res.json();
       setJobId(data.job_id);
       setJobStatus("pending");
-      startPolling(data.job_id, controller.signal);
+      startWebSocket(data.job_id, controller.signal);
     } catch (e: any) {
       if (e.name === "AbortError") {
         console.log("Evaluation request aborted.");

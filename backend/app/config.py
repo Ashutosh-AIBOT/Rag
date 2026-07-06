@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     CHROMA_PERSIST_DIRECTORY: str = ""
     CHROMA_COLLECTION_NAME: str = ""
     DATABASE_URL: str = ""
+    REDIS_URL: str = "redis://localhost:6379/0"
 
     BM25_VECTOR_WEIGHT: float = 0.5
     BM25_SPARSE_WEIGHT: float = 0.5

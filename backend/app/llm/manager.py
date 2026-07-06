@@ -103,6 +103,20 @@ def get_llm_chain():
     return llm_manager.get_llm_chain()
 
 
-async def invoke_with_semaphore(chain, input_data: dict, config: dict = None) -> str:
-    async with _semaphore:
-        return await chain.ainvoke(input_data, config=config)
+async def invoke_with_semaphore(chain, input_data: dict, config: dict = None, max_retries: int = 3) -> str:
+    import asyncio
+    last_error = None
+    for attempt in range(max_retries):
+        async with _semaphore:
+            try:
+                return await chain.ainvoke(input_data, config=config)
+            except Exception as e:
+                last_error = e
+                error_msg = str(e).lower()
+                if "429" in error_msg or "rate" in error_msg or "too many" in error_msg:
+                    wait_time = 2 ** attempt
+                    logger.warning(f"Rate limited (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    raise
+    raise last_error

@@ -71,6 +71,25 @@ async def query_documents(request: QueryRequest, req: Request):
         query_id = str(uuid.uuid4())
         vectorstore = get_vectorstore_by_embedding(request.embedding_model, req)
 
+        # Check semantic cache first
+        from app.services.semantic_cache import semantic_cache
+        cached_result = await asyncio.to_thread(semantic_cache.get, request.question)
+        if cached_result:
+            latency_ms = int((time.time() - start_time) * 1000)
+            insert_query_history(query_id, request.question, cached_result["answer"], request.strategy, latency_ms)
+            
+            trace_id = str(uuid.uuid4())
+            cached_result["trace"]["cached_hit"] = True
+            cached_result["trace"]["latency_ms"] = latency_ms
+            insert_pipeline_trace(trace_id, query_id, json.dumps(cached_result["trace"]))
+            
+            return QueryResponse(
+                query_id=query_id,
+                answer=cached_result["answer"],
+                sources=cached_result["sources"],
+                trace=cached_result["trace"],
+            )
+
         # 1. Advanced Retrieval Strategy and Rerank
         search_res = await asyncio.to_thread(
             search_documents,
@@ -101,7 +120,13 @@ async def query_documents(request: QueryRequest, req: Request):
 
         latency_ms = int((time.time() - start_time) * 1000)
 
-        # 4. Save Query History and Trace
+        # 4. Deduct User Token Budget
+        user_id = req.headers.get("X-User-ID", "default_user")
+        tokens_consumed = handler.total_tokens if handler.total_tokens > 0 else (len(request.question) + len(answer)) // 4
+        from app.database.database import consume_user_tokens
+        await asyncio.to_thread(consume_user_tokens, user_id, tokens_consumed)
+
+        # 5. Save Query History and Trace
         insert_query_history(query_id, request.question, answer, request.strategy, latency_ms)
         
         trace_id = str(uuid.uuid4())
@@ -110,10 +135,14 @@ async def query_documents(request: QueryRequest, req: Request):
         trace["latency_ms"] = latency_ms
         insert_pipeline_trace(trace_id, query_id, json.dumps(trace))
 
+        # Store in semantic cache asynchronously/thread
+        sources = [doc.metadata.get("source", "") for doc in docs]
+        await asyncio.to_thread(semantic_cache.set, request.question, answer, sources, trace)
+
         return QueryResponse(
             query_id=query_id,
             answer=answer,
-            sources=[doc.metadata.get("source", "") for doc in docs],
+            sources=sources,
             trace=trace,
         )
     except Exception as e:
@@ -297,27 +326,47 @@ async def compare_strategies_async(request: CompareRequest, req: Request, backgr
     try:
         job_id = str(uuid.uuid4())
         await asyncio.to_thread(create_job, job_id, "comparison")
-        
+
         vectorstore_a = get_vectorstore_by_embedding(request.embedding_model_a, req)
         vectorstore_b = get_vectorstore_by_embedding(request.embedding_model_b, req)
-        background_tasks.add_task(
-            process_comparison_job,
-            job_id=job_id,
-            question=request.question,
-            k=request.k,
-            strategy_a=request.strategy_a,
-            strategy_b=request.strategy_b,
-            rerank_a=request.rerank_a,
-            rerank_b=request.rerank_b,
-            rerank_top_k_a=request.rerank_top_k_a,
-            rerank_top_k_b=request.rerank_top_k_b,
-            filters=request.filters,
-            vectorstore_a=vectorstore_a,
-            vectorstore_b=vectorstore_b,
-            compress_a=request.compress_a,
-            compress_b=request.compress_b,
-        )
-        
+
+        try:
+            from app.tasks.evaluation import process_comparison_job_task
+            process_comparison_job_task.delay(
+                job_id=job_id,
+                question=request.question,
+                k=request.k,
+                strategy_a=request.strategy_a,
+                strategy_b=request.strategy_b,
+                rerank_a=request.rerank_a,
+                rerank_b=request.rerank_b,
+                rerank_top_k_a=request.rerank_top_k_a,
+                rerank_top_k_b=request.rerank_top_k_b,
+                filters=request.filters,
+                embedding_model_a=request.embedding_model_a,
+                embedding_model_b=request.embedding_model_b,
+                compress_a=request.compress_a,
+                compress_b=request.compress_b,
+            )
+        except Exception:
+            background_tasks.add_task(
+                process_comparison_job,
+                job_id=job_id,
+                question=request.question,
+                k=request.k,
+                strategy_a=request.strategy_a,
+                strategy_b=request.strategy_b,
+                rerank_a=request.rerank_a,
+                rerank_b=request.rerank_b,
+                rerank_top_k_a=request.rerank_top_k_a,
+                rerank_top_k_b=request.rerank_top_k_b,
+                filters=request.filters,
+                vectorstore_a=vectorstore_a,
+                vectorstore_b=vectorstore_b,
+                compress_a=request.compress_a,
+                compress_b=request.compress_b,
+            )
+
         return {"job_id": job_id, "status": "pending"}
     except Exception as e:
         logger.error(f"Failed to submit comparison job: {e}")

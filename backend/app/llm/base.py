@@ -17,5 +17,5 @@ class BaseLLMProvider:
             model=self.model,
             temperature=0.3,
             max_tokens=4096,
-            timeout=10,
+            timeout=60,
         )

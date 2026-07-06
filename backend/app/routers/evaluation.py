@@ -184,12 +184,9 @@ async def evaluate_batch_async(request: BatchEvalRequest, req: Request, backgrou
         job_id = str(uuid.uuid4())
         await asyncio.to_thread(create_job, job_id, "batch_evaluation")
 
-        background_tasks.add_task(
-            process_evaluation_job,
-            job_id=job_id,
-            dataset=request.dataset,
-            req=req,
-        )
+        from app.tasks.evaluation import process_evaluation_job_task
+        dataset_dicts = [item.dict() for item in request.dataset]
+        process_evaluation_job_task.delay(job_id, dataset_dicts)
 
         return {"job_id": job_id, "status": "pending"}
     except Exception as e:

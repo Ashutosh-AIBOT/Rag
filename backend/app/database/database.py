@@ -1,4 +1,6 @@
 import sqlite3
+import psycopg2
+import psycopg2.extras
 import uuid
 from app.config import settings
 from app.core.logging import get_logger
@@ -6,12 +8,59 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 
+class DictCursorWrapper:
+    def __init__(self, cursor):
+        self.cursor = cursor
+
+    def fetchone(self):
+        row = self.cursor.fetchone()
+        return dict(row) if row else None
+
+    def fetchall(self):
+        rows = self.cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    def close(self):
+        self.cursor.close()
+
+
+class DatabaseConnection:
+    def __init__(self, conn, is_postgres=False):
+        self.conn = conn
+        self.is_postgres = is_postgres
+
+    def execute(self, query, params=None):
+        if self.is_postgres:
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            query_translated = query.replace("?", "%s")
+            cursor.execute(query_translated, params or ())
+            return DictCursorWrapper(cursor)
+        else:
+            cursor = self.conn.execute(query, params or ())
+            return cursor
+
+    def commit(self):
+        self.conn.commit()
+
+    def rollback(self):
+        self.conn.rollback()
+
+    def close(self):
+        self.conn.close()
+
+
 def get_db():
     try:
-        conn = sqlite3.connect(settings.DATABASE_URL, timeout=30)
-        conn.row_factory = sqlite3.Row
-        logger.info("DB connection created")
-        return conn
+        db_url = settings.DATABASE_URL
+        if db_url.startswith("postgresql://") or db_url.startswith("postgres://"):
+            conn = psycopg2.connect(db_url)
+            logger.info("PostgreSQL connection created")
+            return DatabaseConnection(conn, is_postgres=True)
+        else:
+            conn = sqlite3.connect(db_url, timeout=30)
+            conn.row_factory = sqlite3.Row
+            logger.info("SQLite connection created")
+            return DatabaseConnection(conn, is_postgres=False)
     except Exception as e:
         logger.error(f"DB connection failed: {e}")
         raise
@@ -402,6 +451,23 @@ def update_job_status(job_id: str, status: str, progress: float, result: str = N
         )
         conn.commit()
         logger.info(f"Background job updated: {job_id} -> {status} ({progress*100}%)")
+        
+        # Publish to Redis Pub/Sub for WebSockets
+        try:
+            import redis
+            import json
+            from app.config import settings
+            r = redis.Redis.from_url(settings.REDIS_URL)
+            msg = {
+                "job_id": job_id,
+                "status": status,
+                "progress": float(progress),
+                "result": result,
+                "error": error
+            }
+            r.publish(f"job_progress:{job_id}", json.dumps(msg))
+        except Exception as ex:
+            logger.warning(f"Failed to publish progress to Redis: {ex}")
     except Exception as e:
         logger.error(f"Failed to update background job: {e}")
         if conn:
@@ -421,3 +487,39 @@ def get_job_status(job_id: str):
     except Exception as e:
         logger.error(f"Failed to get background job: {e}")
         raise
+
+
+def check_user_budget(user_id: str) -> bool:
+    try:
+        conn = get_db()
+        row = conn.execute("SELECT daily_token_limit, tokens_consumed, last_reset_date FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not row:
+            conn.execute("INSERT INTO users (id, username, daily_token_limit, tokens_consumed) VALUES (?, ?, 50000, 0)", (user_id, user_id))
+            conn.commit()
+            conn.close()
+            return True
+
+        import datetime
+        today = datetime.date.today().isoformat()
+        if row.get("last_reset_date") != today:
+            conn.execute("UPDATE users SET tokens_consumed = 0, last_reset_date = ? WHERE id = ?", (today, user_id))
+            conn.commit()
+            conn.close()
+            return True
+
+        conn.close()
+        return row.get("tokens_consumed", 0) < row.get("daily_token_limit", 50000)
+    except Exception as e:
+        logger.error(f"Failed to check user budget: {e}")
+        return True
+
+
+def consume_user_tokens(user_id: str, tokens: int):
+    try:
+        conn = get_db()
+        conn.execute("UPDATE users SET tokens_consumed = tokens_consumed + ? WHERE id = ?", (tokens, user_id))
+        conn.commit()
+        conn.close()
+        logger.info(f"User {user_id} consumed {tokens} tokens")
+    except Exception as e:
+        logger.error(f"Failed to consume user tokens: {e}")

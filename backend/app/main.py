@@ -12,11 +12,14 @@ logger.info("FastAPI app created")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from app.core.middleware import TokenGatingMiddleware
+app.add_middleware(TokenGatingMiddleware)
 
 app.include_router(documents.router, prefix="/api")
 app.include_router(query.router, prefix="/api")
