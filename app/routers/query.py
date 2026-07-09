@@ -150,6 +150,9 @@ async def query_stream_endpoint(req: QueryRequest, db: Session = Depends(get_db)
     except Exception as e:
         err_str = str(e)
         logger.exception("CRITICAL ERROR during synchronous retrieval stage of streaming request: %s", e)
+        async def error_generator():
+            yield {"comment": " " * 16384}
+            yield {"event": "error", "data": json.dumps({"detail": err_str})}
         headers = {
             "X-Accel-Buffering": "no",
             "Cache-Control": "no-cache, no-transform",
@@ -160,6 +163,7 @@ async def query_stream_endpoint(req: QueryRequest, db: Session = Depends(get_db)
     if not chunks:
         logger.warning("[%s] Stream query: no chunks matched. strategy=%s query=%r", current_user.email, req.strategy, req.query[:80])
         async def empty_generator():
+            yield {"comment": " " * 16384}
             yield {"event": "chunks", "data": "[]"}
             notice = "No relevant document chunks found matching the query/filters. Please adjust your query or clear active metadata filters."
             yield {"event": "token", "data": notice}
