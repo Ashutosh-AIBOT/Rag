@@ -1,0 +1,40 @@
+API REFERENCE
+
+AUTHENTICATION
+All API requests must include an Authorization header using the Bearer
+scheme, e.g. "Authorization: Bearer <api_key>". API keys can be generated
+and rotated from the developer dashboard. Authentication failures are
+usually resolved by regenerating the API key in the dashboard and ensuring
+the Authorization header uses the Bearer scheme correctly, without extra
+whitespace or quotes.
+
+RATE LIMITING
+Rate limits scale by subscription tier: Starter allows 60 requests per
+minute, Professional allows 300 requests per minute, and Enterprise allows
+custom limits negotiated per contract. When a client exceeds their rate
+limit, the API returns error code E-4029 with a Retry-After header
+indicating how many seconds to wait before retrying.
+
+ERROR CODES
+Error code E-4021 indicates a malformed request payload, commonly caused
+by missing required fields or invalid JSON syntax in the request body.
+Error code E-4029 indicates the rate limit has been exceeded. Error code
+E-5001 indicates an internal server error and should be retried with
+exponential backoff. Error code E-4041 indicates the requested resource
+was not found.
+
+FILE UPLOADS
+The maximum file size allowed for a single document upload is 50MB.
+Supported file types for ingestion are PDF, TXT, DOCX, and Markdown.
+Files exceeding the size limit will be rejected with error code E-4132
+before any processing begins.
+
+SDK SUPPORT
+The official SDK supports Python, JavaScript/TypeScript, and Go. Community
+maintained SDKs exist for Ruby and Java but are not officially supported.
+The Python SDK can be installed via pip install platform-sdk.
+
+WEBHOOKS
+Webhooks can be configured to receive events for document.processed,
+query.completed, and evaluation.completed. Webhook payloads are signed
+using HMAC-SHA256 and the signature is included in the X-Signature header.

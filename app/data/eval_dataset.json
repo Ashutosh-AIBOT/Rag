@@ -1,0 +1,102 @@
+[
+  {
+    "question": "What is the standard cost per gigabyte for the Enterprise storage tier?",
+    "reference_answer": "The Enterprise storage tier costs $0.023 per gigabyte per month.",
+    "relevant_sources": ["pricing_guide.txt"]
+  },
+  {
+    "question": "What error code is returned when an API request exceeds the rate limit?",
+    "reference_answer": "The API returns error code E-4029 when the rate limit is exceeded.",
+    "relevant_sources": ["api_reference.txt"]
+  },
+  {
+    "question": "How do I resolve authentication failures when connecting to the API?",
+    "reference_answer": "Authentication failures are usually resolved by regenerating the API key in the dashboard and ensuring the Authorization header uses the Bearer scheme.",
+    "relevant_sources": ["api_reference.txt"]
+  },
+  {
+    "question": "What was the company's total revenue in Q3 2025?",
+    "reference_answer": "Total revenue in Q3 2025 was $42.7 million, up 18% year over year.",
+    "relevant_sources": ["annual_report.txt"]
+  },
+  {
+    "question": "What are the overall financial results for fiscal year 2025?",
+    "reference_answer": "Fiscal year 2025 revenue was $158 million with a net profit margin of 14%, driven by growth in the Enterprise segment.",
+    "relevant_sources": ["annual_report.txt"]
+  },
+  {
+    "question": "Compare the features and pricing of the Starter plan versus the Enterprise plan.",
+    "reference_answer": "The Starter plan includes 10GB storage and email support at $9/month, while the Enterprise plan includes unlimited storage, SSO, and 24/7 phone support at $299/month.",
+    "relevant_sources": ["pricing_guide.txt"]
+  },
+  {
+    "question": "What security certifications does the platform hold?",
+    "reference_answer": "The platform holds SOC 2 Type II and ISO 27001 certifications.",
+    "relevant_sources": ["security_whitepaper.txt"]
+  },
+  {
+    "question": "How is customer data encrypted at rest and in transit?",
+    "reference_answer": "Data at rest is encrypted using AES-256, and data in transit is encrypted using TLS 1.3.",
+    "relevant_sources": ["security_whitepaper.txt"]
+  },
+  {
+    "question": "What is the maximum file size allowed for a single document upload?",
+    "reference_answer": "The maximum file size for a single document upload is 50MB.",
+    "relevant_sources": ["api_reference.txt"]
+  },
+  {
+    "question": "Explain the process for requesting a refund.",
+    "reference_answer": "Refunds can be requested within 30 days of purchase by contacting support with the invoice number; approved refunds are processed within 5-7 business days.",
+    "relevant_sources": ["pricing_guide.txt"]
+  },
+  {
+    "question": "What retention policy applies to deleted documents?",
+    "reference_answer": "Deleted documents are retained in a recovery bin for 14 days before permanent deletion.",
+    "relevant_sources": ["security_whitepaper.txt"]
+  },
+  {
+    "question": "What programming languages does the official SDK support?",
+    "reference_answer": "The official SDK supports Python, JavaScript/TypeScript, and Go.",
+    "relevant_sources": ["api_reference.txt"]
+  },
+  {
+    "question": "What growth trends were observed in the Enterprise customer segment during 2025?",
+    "reference_answer": "The Enterprise customer segment grew 34% year-over-year in 2025, becoming the largest contributor to total revenue.",
+    "relevant_sources": ["annual_report.txt"]
+  },
+  {
+    "question": "What is error code E-4021 and what commonly causes it?",
+    "reference_answer": "Error code E-4021 indicates a malformed request payload, commonly caused by missing required fields or invalid JSON.",
+    "relevant_sources": ["api_reference.txt"]
+  },
+  {
+    "question": "Describe the disaster recovery and backup strategy used by the platform.",
+    "reference_answer": "The platform performs automated daily backups retained for 30 days and maintains a multi-region failover setup with an RPO of under 1 hour.",
+    "relevant_sources": ["security_whitepaper.txt"]
+  },
+  {
+    "question": "What discount is available for annual billing versus monthly billing?",
+    "reference_answer": "Annual billing provides a 20% discount compared to monthly billing.",
+    "relevant_sources": ["pricing_guide.txt"]
+  },
+  {
+    "question": "What were the main risk factors disclosed for the upcoming fiscal year?",
+    "reference_answer": "Key risk factors include foreign currency exposure, dependency on a small number of large enterprise customers, and increasing competition in the mid-market segment.",
+    "relevant_sources": ["annual_report.txt"]
+  },
+  {
+    "question": "How does rate limiting work across different subscription tiers?",
+    "reference_answer": "Rate limits scale by tier: Starter allows 60 requests/minute, Professional allows 300 requests/minute, and Enterprise allows custom limits negotiated per contract.",
+    "relevant_sources": ["api_reference.txt", "pricing_guide.txt"]
+  },
+  {
+    "question": "What is the pricing for the Professional plan and what does it include?",
+    "reference_answer": "The Professional plan costs $49/month and includes 100GB storage, priority support, and access to advanced analytics.",
+    "relevant_sources": ["pricing_guide.txt"]
+  },
+  {
+    "question": "What compliance frameworks are mentioned for handling healthcare-related data?",
+    "reference_answer": "The platform supports HIPAA-compliant configurations for customers handling healthcare-related data, available on Enterprise plans.",
+    "relevant_sources": ["security_whitepaper.txt"]
+  }
+]

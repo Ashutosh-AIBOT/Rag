@@ -1,0 +1,41 @@
+PRICING GUIDE
+
+OVERVIEW
+This document describes the subscription plans, pricing, billing policies,
+and refund process for the platform.
+
+STARTER PLAN
+The Starter plan is designed for individuals and small teams getting started.
+It costs $9 per month and includes 10GB of storage, email support with a
+48-hour response time, and access to core features. The Starter plan allows
+60 requests per minute against the API.
+
+PROFESSIONAL PLAN
+The Professional plan costs $49 per month and includes 100GB storage,
+priority support with a 4-hour response time, and access to advanced
+analytics dashboards. The Professional plan allows 300 requests per minute
+against the API.
+
+ENTERPRISE PLAN
+The Enterprise plan is billed at $299 per month and includes unlimited
+storage, single sign-on (SSO) integration, a dedicated account manager, and
+24/7 phone support. Enterprise customers can negotiate custom API rate
+limits per their contract. Enterprise storage tier costs $0.023 per gigabyte
+per month for usage beyond the included allocation.
+
+ANNUAL BILLING DISCOUNT
+Customers who choose annual billing instead of monthly billing receive a
+20% discount on their total subscription cost. Annual plans are billed
+once per year and are non-refundable except in the case of service
+unavailability exceeding the SLA.
+
+REFUND POLICY
+Refunds can be requested within 30 days of purchase by contacting support
+with the invoice number. Approved refunds are processed within 5-7 business
+days back to the original payment method. Refunds are not available for
+add-on usage charges already consumed during the billing period.
+
+ADD-ONS
+Additional storage beyond plan limits is billed at $0.03 per GB for
+Starter and Professional plans. Additional seats can be purchased at $15
+per seat per month on the Professional plan.

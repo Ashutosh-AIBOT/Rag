@@ -1,0 +1,37 @@
+SECURITY WHITEPAPER
+
+CERTIFICATIONS
+The platform holds SOC 2 Type II and ISO 27001 certifications, both
+renewed annually through independent third-party audits. Audit reports
+are available to Enterprise customers under NDA upon request.
+
+ENCRYPTION
+Customer data at rest is encrypted using AES-256. Data in transit between
+clients and the platform, and between internal services, is encrypted
+using TLS 1.3. Encryption keys are managed through a dedicated key
+management service with automatic rotation every 90 days.
+
+DATA RETENTION AND DELETION
+Deleted documents are retained in a recovery bin for 14 days before
+permanent deletion, allowing customers to recover accidentally deleted
+files. After the 14-day window, data is permanently and irrecoverably
+purged from primary and backup storage within an additional 30 days.
+
+BACKUP AND DISASTER RECOVERY
+The platform performs automated daily backups retained for 30 days and
+maintains a multi-region failover setup with a recovery point objective
+(RPO) of under 1 hour and a recovery time objective (RTO) of under 4
+hours in the event of a regional outage.
+
+COMPLIANCE FOR REGULATED INDUSTRIES
+The platform supports HIPAA-compliant configurations for customers
+handling healthcare-related data, available exclusively on Enterprise
+plans with a signed Business Associate Agreement (BAA). GDPR data
+processing addenda are available for all customers operating in the
+European Union.
+
+ACCESS CONTROL
+Enterprise plans support single sign-on (SSO) via SAML 2.0 and OIDC, as
+well as role-based access control (RBAC) with custom permission sets.
+All administrative actions are logged in an immutable audit trail
+retained for 7 years.
