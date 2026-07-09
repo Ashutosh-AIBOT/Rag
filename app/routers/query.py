@@ -190,6 +190,7 @@ async def query_stream_endpoint(req: QueryRequest, db: Session = Depends(get_db)
     logger.info("[%s] Stream retrieved %d chunks. Starting LLM generation.", current_user.email, len(chunks))
 
     async def event_generator():
+        yield {"comment": " " * 4096}
         logger.info("event_generator: yielding event 'chunks'")
         yield {"event": "chunks", "data": json.dumps([
             {**{k: v for k, v in c.items() if k != "parent_text"}, "token_count": count_tokens(c.get("text", ""))} for c in chunks
