@@ -117,53 +117,75 @@ app.add_middleware(
 )
 
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        if request.url.scheme == "https":
-            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        return response
+from starlette.datastructures import MutableHeaders
 
-app.add_middleware(SecurityHeadersMiddleware)
+class ProductionASGIStateMiddleware:
+    def __init__(self, app):
+        self.app = app
 
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
 
-@app.middleware("http")
-async def add_correlation_id(request: Request, call_next):
-    """Add correlation ID, structured request logging, and timing to every request."""
-    correlation_id = request.headers.get("X-Correlation-ID", str(uuid.uuid4())[:12])
-    _cid_var.set(correlation_id)
+        import uuid
+        import time
+        from starlette.datastructures import Headers
 
-    client_ip = request.client.host if request.client else "unknown"
-    logger.info(
-        "[%s] REQUEST  %s %s  client=%s  user_agent=%s",
-        correlation_id, request.method, request.url.path, client_ip,
-        request.headers.get("user-agent", "-")[:80],
-    )
+        headers = Headers(scope=scope)
+        correlation_id = headers.get("x-correlation-id", str(uuid.uuid4())[:12])
+        _cid_var.set(correlation_id)
 
-    start = time.time()
-    try:
-        response = await call_next(request)
-    except Exception as exc:
-        elapsed_ms = (time.time() - start) * 1000
-        logger.error(
-            "[%s] ERROR     %s %s  status=500  elapsed=%.1fms  error=%s",
-            correlation_id, request.method, request.url.path, elapsed_ms, str(exc)[:200],
+        path = scope.get("path", "")
+        method = scope.get("method", "")
+        client = scope.get("client")
+        client_ip = f"{client[0]}:{client[1]}" if client else "unknown"
+        
+        user_agent = "-"
+        for k, v in scope.get("headers", []):
+            if k == b"user-agent":
+                user_agent = v.decode("utf-8", errors="ignore")
+                break
+
+        logger.info(
+            "[%s] REQUEST  %s %s  client=%s  user_agent=%s",
+            correlation_id, method, path, client_ip, user_agent[:80],
         )
-        raise
 
-    elapsed_ms = (time.time() - start) * 1000
-    response.headers["X-Correlation-ID"] = correlation_id
-    response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.1f}"
+        start_time = time.perf_counter()
 
-    logger.info(
-        "[%s] RESPONSE  %s %s  status=%d  elapsed=%.1fms",
-        correlation_id, request.method, request.url.path, response.status_code, elapsed_ms,
-    )
-    return response
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                elapsed_ms = (time.perf_counter() - start_time) * 1000
+                res_headers = MutableHeaders(scope=message)
+                res_headers["X-Content-Type-Options"] = "nosniff"
+                res_headers["X-Frame-Options"] = "DENY"
+                res_headers["X-XSS-Protection"] = "1; mode=block"
+                res_headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+                if scope.get("scheme") == "https":
+                    res_headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+                
+                res_headers["X-Correlation-ID"] = correlation_id
+                res_headers["X-Process-Time-Ms"] = f"{elapsed_ms:.1f}"
+
+                status_code = message.get("status", 200)
+                logger.info(
+                    "[%s] RESPONSE  %s %s  status=%d  elapsed=%.1fms",
+                    correlation_id, method, path, status_code, elapsed_ms,
+                )
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapper)
+        except Exception as exc:
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            logger.error(
+                "[%s] ERROR     %s %s  status=500  elapsed=%.1fms  error=%s",
+                correlation_id, method, path, elapsed_ms, str(exc)[:200],
+            )
+            raise
+
+app.add_middleware(ProductionASGIStateMiddleware)
 
 
 app.include_router(auth.router)
