@@ -255,9 +255,26 @@ async def query_stream_endpoint(req: QueryRequest, db: Session = Depends(get_db)
 async def compare_endpoint(req: CompareRequest, db: Session = Depends(get_db), current_user: User = Depends(_get_current_user)):
     logger.info("[%s] Compare started: strategies=%s vs %s query=%r", current_user.email, req.strategy_a, req.strategy_b, req.query[:80])
     import asyncio
+
+    async def run_safe(strategy):
+        try:
+            return await _run_rag_query_bounded(req.query, strategy, req.filters, user_id=current_user.id)
+        except Exception as e:
+            logger.error("RAG strategy %s execution failed in compare endpoint: %s", strategy, e, exc_info=True)
+            return {
+                "answer": f"Error running strategy {strategy}: {str(e)}",
+                "chunks": [],
+                "pipeline": [{"name": "error", "detail": {"error": str(e)}, "duration_ms": 0.0}],
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "latency_ms": 0.0,
+                "estimated_cost_usd": 0.0,
+                "context": "",
+            }
+
     result_a, result_b = await asyncio.gather(
-        _run_rag_query_bounded(req.query, req.strategy_a, req.filters, user_id=current_user.id),
-        _run_rag_query_bounded(req.query, req.strategy_b, req.filters, user_id=current_user.id),
+        run_safe(req.strategy_a),
+        run_safe(req.strategy_b),
     )
 
     def score_quality(result):
@@ -266,26 +283,36 @@ async def compare_endpoint(req: CompareRequest, db: Session = Depends(get_db), c
         need one -- faithfulness (answer vs. context) and relevancy
         (answer vs. question) -- are computed here, directly via the judges
         rather than the full 4-metric evaluate_full pass."""
-        if not req.score_quality:
+        if not req.score_quality or not result.get("context") or not result.get("answer"):
             return {}
         try:
             faithfulness = evaluate_faithfulness(result["context"], result["answer"])
             relevancy = evaluate_relevancy(req.query, result["answer"])
-            return {"faithfulness": faithfulness["score"], "answer_relevancy": relevancy["score"]}
-        except Exception:
+            return {"faithfulness": faithfulness.get("score", 0.0), "answer_relevancy": relevancy.get("score", 0.0)}
+        except Exception as e:
+            logger.warning("Score quality failed in compare endpoint: %s", e)
             return {}
 
     def log_and_wrap(strategy, result):
         quality = score_quality(result)
-        log = QueryLog(query=req.query, strategy=strategy, filters=req.filters.model_dump(),
-                        answer=result["answer"], trace=result["pipeline"], chunks=result["chunks"],
-                        input_tokens=result["input_tokens"], output_tokens=result["output_tokens"],
-                        latency_ms=result["latency_ms"], user_id=current_user.id)
-        db.add(log)
-        db.commit()
-        db.refresh(log)
+        log_id = None
+        try:
+            log = QueryLog(query=req.query, strategy=strategy, filters=req.filters.model_dump(),
+                            answer=result["answer"], trace=result["pipeline"], chunks=result["chunks"],
+                            input_tokens=result["input_tokens"], output_tokens=result["output_tokens"],
+                            latency_ms=result["latency_ms"], user_id=current_user.id)
+            db.add(log)
+            db.commit()
+            db.refresh(log)
+            log_id = log.id
+        except Exception as e:
+            logger.error("Failed to commit QueryLog to database in compare endpoint: %s", e, exc_info=True)
+            db.rollback()
+            import uuid
+            log_id = f"failed-log-{uuid.uuid4().hex[:8]}"
+
         return QueryResponse(
-            query_id=log.id, query=req.query, strategy=strategy, answer=result["answer"],
+            query_id=log_id, query=req.query, strategy=strategy, answer=result["answer"],
             chunks=_to_chunk_scores(result["chunks"]),
             pipeline=[PipelineStep(name=s["name"], detail=s["detail"], duration_ms=s["duration_ms"])
                       for s in result["pipeline"]],
