@@ -150,10 +150,12 @@ async def query_stream_endpoint(req: QueryRequest, db: Session = Depends(get_db)
     except Exception as e:
         err_str = str(e)
         logger.exception("CRITICAL ERROR during synchronous retrieval stage of streaming request: %s", e)
-        async def error_generator():
-            yield {"event": "token", "data": f"\n\n[Retrieval Error: {err_str}]"}
-            yield {"event": "done", "data": json.dumps({"query_id": "error", "error": err_str})}
-        return EventSourceResponse(error_generator())
+        headers = {
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+        }
+        return EventSourceResponse(error_generator(), headers=headers)
 
     if not chunks:
         logger.warning("[%s] Stream query: no chunks matched. strategy=%s query=%r", current_user.email, req.strategy, req.query[:80])
@@ -178,12 +180,12 @@ async def query_stream_endpoint(req: QueryRequest, db: Session = Depends(get_db)
             finally:
                 bg_db.close()
                 
-            yield {"event": "done", "data": json.dumps({
-                "query_id": query_id,
-                "input_tokens": 0,
-                "output_tokens": 0,
-            })}
-        return EventSourceResponse(empty_generator())
+        headers = {
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+        }
+        return EventSourceResponse(empty_generator(), headers=headers)
 
     logger.info("[%s] Stream retrieved %d chunks. Starting LLM generation.", current_user.email, len(chunks))
 
@@ -248,7 +250,12 @@ async def query_stream_endpoint(req: QueryRequest, db: Session = Depends(get_db)
             "latency_ms": latency_ms,
         })}
 
-    return EventSourceResponse(event_generator())
+    headers = {
+        "X-Accel-Buffering": "no",
+        "Cache-Control": "no-cache, no-transform",
+        "Connection": "keep-alive",
+    }
+    return EventSourceResponse(event_generator(), headers=headers)
 
 
 @router.post("/query/compare", response_model=CompareResponse)

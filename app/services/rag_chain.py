@@ -11,6 +11,7 @@ determines which chunks become the `context` variable), which keeps the
 generation chain itself simple, declarative and reusable across strategies.
 """
 import logging
+import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Any, List, Optional
 import re
@@ -424,7 +425,9 @@ async def stream_rag_answer(query: str, context: str, provider: str = None,
             async for token in chain.astream({"context": context, "question": query}):
                 full_answer.append(token)
                 yield token
+                await asyncio.sleep(0.02)
             rec["detail"]["output_tokens"] = count_tokens("".join(full_answer))
     else:
         async for token in chain.astream({"context": context, "question": query}):
             yield token
+            await asyncio.sleep(0.02)
